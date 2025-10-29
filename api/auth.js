@@ -4,7 +4,7 @@ const router = express.Router();
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'rafa.0.0.7@hotmail.com';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Db6aedf7028.';
-const JWT_SECRET = process.env.SESSION_SECRET || 'discord-dashboard-secret-key-change-this';
+const JWT_SECRET = process.env.JWT_SECRET || 'discord-dashboard-secret-key-change-this';
 
 router.post('/login', (req, res) => {
     const { email, password } = req.body;

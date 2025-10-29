@@ -10,6 +10,10 @@ yarn-error.log*
 pnpm-debug.log*
 package-lock.json
 yarn.lock
+.env
+.vercel
+*.log
+.DS_Store
 
 # Environment variables
 .env

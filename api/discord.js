@@ -1,7 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.SESSION_SECRET || 'discord-dashboard-secret-key-change-this';
+const JWT_SECRET = process.env.JWT_SECRET || 'discord-dashboard-secret-key-change-this';
 
 const requireAuth = (req, res, next) => {
     const token = req.cookies.auth_token;

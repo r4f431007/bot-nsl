@@ -2,7 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const { getPool } = require('../db');
 
-const JWT_SECRET = process.env.SESSION_SECRET || 'discord-dashboard-secret-key-change-this';
+const JWT_SECRET = process.env.JWT_SECRET || 'discord-dashboard-secret-key-change-this';
 
 const requireAuth = (req, res, next) => {
     const token = req.cookies.auth_token;
@@ -33,12 +33,12 @@ module.exports = () => {
         
         try {
             const pool = getPool();
-            const [rows] = await pool.execute(
-                'SELECT * FROM actions WHERE type = ? ORDER BY created_at DESC',
+            const result = await pool.query(
+                'SELECT * FROM actions WHERE type = $1 ORDER BY created_at DESC',
                 [type]
             );
             
-            const actions = rows.map(row => ({
+            const actions = result.rows.map(row => ({
                 id: row.id,
                 type: row.type,
                 name: row.name,
@@ -76,8 +76,8 @@ module.exports = () => {
             };
             
             const pool = getPool();
-            await pool.execute(
-                'INSERT INTO actions (id, type, name, description, config, enabled) VALUES (?, ?, ?, ?, ?, ?)',
+            await pool.query(
+                'INSERT INTO actions (id, type, name, description, config, enabled) VALUES ($1, $2, $3, $4, $5, $6)',
                 [
                     newAction.id,
                     newAction.type,
@@ -107,12 +107,12 @@ module.exports = () => {
         
         try {
             const pool = getPool();
-            const [result] = await pool.execute(
-                'UPDATE actions SET enabled = ? WHERE id = ? AND type = ?',
+            const result = await pool.query(
+                'UPDATE actions SET enabled = $1 WHERE id = $2 AND type = $3',
                 [enabled, id, type]
             );
             
-            if (result.affectedRows === 0) {
+            if (result.rowCount === 0) {
                 return res.status(404).json({ 
                     success: false,
                     error: 'Acción no encontrada'
@@ -134,8 +134,8 @@ module.exports = () => {
         
         try {
             const pool = getPool();
-            await pool.execute(
-                'DELETE FROM actions WHERE id = ? AND type = ?',
+            await pool.query(
+                'DELETE FROM actions WHERE id = $1 AND type = $2',
                 [id, type]
             );
             
