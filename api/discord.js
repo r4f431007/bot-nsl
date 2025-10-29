@@ -1,5 +1,9 @@
+const { Client, GatewayIntentBits } = require('discord.js');
 const express = require('express');
 const router = express.Router();
+
+let discordClient = null;
+let clientReady = false;
 
 const requireAuth = (req, res, next) => {
     if (req.session.authenticated) {
@@ -12,71 +16,128 @@ const requireAuth = (req, res, next) => {
     }
 };
 
-function setupDiscordRoutes(client) {
-    router.get('/channels', requireAuth, async (req, res) => {
-        try {
-            const guilds = client.guilds.cache;
-            const channelsData = [];
+async function getDiscordClient() {
+    if (discordClient && clientReady) {
+        return discordClient;
+    }
 
-            guilds.forEach(guild => {
-                const channels = guild.channels.cache
-                    .filter(channel => channel.isTextBased())
-                    .map(channel => ({
-                        id: channel.id,
-                        name: channel.name,
-                        guild: guild.name
-                    }));
-                channelsData.push(...channels);
-            });
+    if (!discordClient) {
+        discordClient = new Client({
+            intents: [
+                GatewayIntentBits.Guilds,
+                GatewayIntentBits.GuildMessages
+            ]
+        });
 
-            res.json({ 
-                success: true,
-                channels: channelsData 
-            });
-        } catch (error) {
-            console.error('Error obteniendo canales:', error);
-            res.status(500).json({ 
-                success: false,
-                error: 'Error obteniendo canales' 
-            });
-        }
-    });
+        discordClient.once('ready', () => {
+            console.log(`✅ Bot conectado como ${discordClient.user.tag}`);
+            clientReady = true;
+        });
 
-    router.post('/send-message', requireAuth, async (req, res) => {
-        const { channelId, message } = req.body;
+        discordClient.on('error', (error) => {
+            console.error('Error del cliente de Discord:', error);
+            clientReady = false;
+        });
 
-        if (!channelId || !message) {
-            return res.status(400).json({ 
-                success: false,
-                error: 'Canal y mensaje son requeridos' 
-            });
-        }
-
-        try {
-            const channel = await client.channels.fetch(channelId);
+        await discordClient.login(process.env.DISCORD_TOKEN);
+        
+        await new Promise((resolve) => {
+            const checkReady = setInterval(() => {
+                if (clientReady) {
+                    clearInterval(checkReady);
+                    resolve();
+                }
+            }, 100);
             
-            if (!channel || !channel.isTextBased()) {
-                return res.status(404).json({ 
-                    success: false,
-                    error: 'Canal no encontrado o no es de texto' 
-                });
-            }
+            setTimeout(() => {
+                clearInterval(checkReady);
+                resolve();
+            }, 10000);
+        });
+    }
 
-            await channel.send(message);
-            res.json({ 
-                success: true, 
-                message: 'Mensaje enviado correctamente' 
-            });
-        } catch (error) {
-            console.error('Error enviando mensaje:', error);
-            res.status(500).json({ 
-                success: false,
-                error: 'Error enviando mensaje. Verifica que el bot tenga permisos.' 
-            });
-        }
-    });
-
-    return router;
+    return discordClient;
 }
 
-module.exports = setupDiscordRoutes;
+router.get('/channels', requireAuth, async (req, res) => {
+    try {
+        const client = await getDiscordClient();
+        
+        if (!clientReady) {
+            return res.status(503).json({ 
+                success: false,
+                error: 'El bot aún se está conectando. Intenta de nuevo en unos segundos.' 
+            });
+        }
+
+        const guilds = client.guilds.cache;
+        const channelsData = [];
+
+        guilds.forEach(guild => {
+            const channels = guild.channels.cache
+                .filter(channel => channel.isTextBased())
+                .map(channel => ({
+                    id: channel.id,
+                    name: channel.name,
+                    guild: guild.name
+                }));
+            channelsData.push(...channels);
+        });
+
+        res.json({ 
+            success: true,
+            channels: channelsData 
+        });
+    } catch (error) {
+        console.error('Error obteniendo canales:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Error obteniendo canales: ' + error.message
+        });
+    }
+});
+
+router.post('/send-message', requireAuth, async (req, res) => {
+    const { channelId, message } = req.body;
+
+    if (!channelId || !message) {
+        return res.status(400).json({ 
+            success: false,
+            error: 'Canal y mensaje son requeridos' 
+        });
+    }
+
+    try {
+        const client = await getDiscordClient();
+        
+        if (!clientReady) {
+            return res.status(503).json({ 
+                success: false,
+                error: 'El bot aún se está conectando. Intenta de nuevo en unos segundos.' 
+            });
+        }
+
+        const channel = await client.channels.fetch(channelId);
+        
+        if (!channel || !channel.isTextBased()) {
+            return res.status(404).json({ 
+                success: false,
+                error: 'Canal no encontrado o no es de texto' 
+            });
+        }
+
+        await channel.send(message);
+        res.json({ 
+            success: true, 
+            message: 'Mensaje enviado correctamente' 
+        });
+    } catch (error) {
+        console.error('Error enviando mensaje:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Error enviando mensaje: ' + error.message
+        });
+    }
+});
+
+module.exports = router;
