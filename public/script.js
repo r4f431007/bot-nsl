@@ -34,7 +34,18 @@ async function loadChannels() {
         
         const data = await response.json();
         
+        if (!data.success) {
+            showNotification('❌ ' + (data.error || 'Error cargando canales'), 'error');
+            return;
+        }
+        
         channelSelect.innerHTML = '<option value="">Selecciona un canal</option>';
+        
+        if (data.channels.length === 0) {
+            channelSelect.innerHTML = '<option value="">No hay canales disponibles</option>';
+            showNotification('⚠️ No se encontraron canales. Verifica que el bot esté en un servidor.', 'error');
+            return;
+        }
         
         data.channels.forEach(channel => {
             const option = document.createElement('option');
@@ -43,7 +54,7 @@ async function loadChannels() {
             channelSelect.appendChild(option);
         });
     } catch (error) {
-        showNotification('Error cargando canales', 'error');
+        showNotification('❌ Error de conexión al cargar canales', 'error');
         console.error(error);
     }
 }
@@ -53,12 +64,12 @@ async function sendMessage() {
     const message = messageInput.value.trim();
     
     if (!channelId) {
-        showNotification('Por favor selecciona un canal', 'error');
+        showNotification('⚠️ Por favor selecciona un canal', 'error');
         return;
     }
     
     if (!message) {
-        showNotification('Por favor escribe un mensaje', 'error');
+        showNotification('⚠️ Por favor escribe un mensaje', 'error');
         return;
     }
     
@@ -82,14 +93,14 @@ async function sendMessage() {
         
         const data = await response.json();
         
-        if (response.ok) {
+        if (response.ok && data.success) {
             showNotification('✅ Mensaje enviado correctamente', 'success');
             messageInput.value = '';
         } else {
-            showNotification(`❌ ${data.error}`, 'error');
+            showNotification(`❌ ${data.error || 'Error enviando mensaje'}`, 'error');
         }
     } catch (error) {
-        showNotification('❌ Error enviando mensaje', 'error');
+        showNotification('❌ Error de conexión al enviar mensaje', 'error');
         console.error(error);
     } finally {
         sendBtn.disabled = false;
@@ -106,6 +117,7 @@ async function logout() {
         window.location.href = '/login.html';
     } catch (error) {
         console.error('Error logging out:', error);
+        window.location.href = '/login.html';
     }
 }
 

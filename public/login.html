@@ -22,6 +22,7 @@
                         type="email" 
                         id="email" 
                         placeholder="tu@email.com"
+                        autocomplete="email"
                         required
                     >
                 </div>
@@ -32,11 +33,12 @@
                         type="password" 
                         id="password" 
                         placeholder="••••••••"
+                        autocomplete="current-password"
                         required
                     >
                 </div>
 
-                <button type="submit" class="btn-login">
+                <button type="submit" class="btn-login" id="loginBtn">
                     <span class="btn-text">Iniciar Sesión</span>
                     <span class="btn-loading">Verificando...</span>
                 </button>
