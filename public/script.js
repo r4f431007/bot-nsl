@@ -137,16 +137,23 @@ async function loadRoles(guildId) {
     return [];
 }
 
+
+function normalizeText(text) {
+    return text.toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+
 function filterChannels(searchTerm) {
-    const term = searchTerm.toLowerCase().trim();
+    const term = normalizeText(searchTerm.trim());
     
     if (!term) {
         return allChannels;
     }
     
     return allChannels.filter(channel => 
-        channel.name.toLowerCase().includes(term) ||
-        channel.guild.toLowerCase().includes(term)
+        normalizeText(channel.name).includes(term) ||
+        normalizeText(channel.guild).includes(term)
     );
 }
 
@@ -163,6 +170,11 @@ function renderDropdown(channels) {
         const option = document.createElement('div');
         option.className = 'channel-option';
         option.dataset.channelId = channel.id;
+        
+        if (selectedChannel && selectedChannel.id === channel.id) {
+            option.classList.add('selected');
+        }
+        
         option.innerHTML = `
             <div class="guild-name">${channel.guild}</div>
             <div class="channel-name">#${channel.name}</div>
@@ -188,6 +200,8 @@ function selectChannel(channel, optionElement) {
         optionElement.classList.add('selected');
     }
     
+    const selectContainer = channelSearch.parentElement;
+    selectContainer.classList.remove('open');
     channelDropdown.classList.remove('show');
 }
 
@@ -198,22 +212,49 @@ channelSearch.addEventListener('input', (e) => {
 });
 
 channelSearch.addEventListener('focus', () => {
-    if (channelSearch.value && !selectedChannel) {
-        const filtered = filterChannels(channelSearch.value);
-        renderDropdown(filtered);
-    } else if (!channelSearch.value) {
-        renderDropdown(allChannels.slice(0, 20));
+    const selectContainer = channelSearch.parentElement;
+    selectContainer.classList.add('open');
+    const filtered = filterChannels(channelSearch.value);
+    renderDropdown(filtered);
+});
+
+channelSearch.addEventListener('click', () => {
+    const selectContainer = channelSearch.parentElement;
+    selectContainer.classList.add('open');
+    const filtered = filterChannels(channelSearch.value);
+    renderDropdown(filtered);
+});
+
+let dropdownCloseTimeout;
+
+channelSearch.addEventListener('blur', (e) => {
+    const selectContainer = channelSearch.parentElement;
+    dropdownCloseTimeout = setTimeout(() => {
+        selectContainer.classList.remove('open');
+        channelDropdown.classList.remove('show');
+    }, 300);
+});
+
+channelDropdown.addEventListener('mousedown', (e) => {
+    if (dropdownCloseTimeout) {
+        clearTimeout(dropdownCloseTimeout);
     }
 });
 
-channelSearch.addEventListener('blur', (e) => {
-    setTimeout(() => {
-        channelDropdown.classList.remove('show');
-    }, 200);
+channelDropdown.addEventListener('mouseleave', () => {
+    if (document.activeElement !== channelSearch) {
+        const selectContainer = channelSearch.parentElement;
+        dropdownCloseTimeout = setTimeout(() => {
+            selectContainer.classList.remove('open');
+            channelDropdown.classList.remove('show');
+        }, 300);
+    }
 });
 
 document.addEventListener('click', (e) => {
+    const selectContainer = document.querySelector('.select-container');
     if (!channelSearch.contains(e.target) && !channelDropdown.contains(e.target)) {
+        if (selectContainer) selectContainer.classList.remove('open');
         channelDropdown.classList.remove('show');
     }
 });
