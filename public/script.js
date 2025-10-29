@@ -13,8 +13,10 @@ const actionModal = document.getElementById('actionModal');
 let allChannels = [];
 let selectedChannel = null;
 let allServers = [];
+let allRoles = {};
 let checkingAuth = false;
 let currentActionType = '';
+let currentGuildId = '';
 
 async function checkAuth() {
     if (checkingAuth) return;
@@ -54,7 +56,11 @@ document.querySelectorAll('.tab-button').forEach(button => {
         if (tabName === 'stats' && allServers.length === 0) {
             loadServers();
         } else if (tabName === 'actions') {
-            loadAllActions();
+            if (allServers.length === 0) {
+                loadServers().then(() => loadAllActions());
+            } else {
+                loadAllActions();
+            }
         }
     });
 });
@@ -106,6 +112,29 @@ async function loadChannels() {
         showNotification('❌ Error de conexión al cargar canales', 'error');
         console.error(error);
     }
+}
+
+async function loadRoles(guildId) {
+    try {
+        const response = await fetch(`${API_URL}/api/roles/${guildId}`, {
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            window.location.replace('/login.html');
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            allRoles[guildId] = data.roles;
+            return data.roles;
+        }
+    } catch (error) {
+        console.error('Error cargando roles:', error);
+    }
+    return [];
 }
 
 function filterChannels(searchTerm) {
@@ -275,7 +304,9 @@ async function loadServers() {
         });
         
         if (allServers.length > 0) {
-            loadStats(allServers[0].id);
+            currentGuildId = allServers[0].id;
+            loadStats(currentGuildId);
+            await loadRoles(currentGuildId);
         }
     } catch (error) {
         console.error('Error cargando servidores:', error);
@@ -346,9 +377,11 @@ function adjustColor(color, amount) {
     return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
 }
 
-serverSelect.addEventListener('change', (e) => {
+serverSelect.addEventListener('change', async (e) => {
     if (e.target.value) {
-        loadStats(e.target.value);
+        currentGuildId = e.target.value;
+        loadStats(currentGuildId);
+        await loadRoles(currentGuildId);
     }
 });
 
@@ -412,8 +445,16 @@ function renderActions(type, actions) {
     });
 }
 
-function openActionModal(type) {
+async function openActionModal(type) {
     currentActionType = type;
+    
+    if (!currentGuildId && allServers.length > 0) {
+        currentGuildId = allServers[0].id;
+        await loadRoles(currentGuildId);
+    }
+    
+    await loadGuildEmojis();
+    
     const modal = document.getElementById('actionModal');
     const modalTitle = document.getElementById('modalTitle');
     const modalBody = document.getElementById('modalBody');
@@ -427,7 +468,7 @@ function openActionModal(type) {
     };
     
     modalTitle.textContent = titles[type];
-    modalBody.innerHTML = getModalForm(type);
+    modalBody.innerHTML = await getModalForm(type);
     modal.classList.add('show');
 }
 
@@ -435,7 +476,16 @@ function closeActionModal() {
     document.getElementById('actionModal').classList.remove('show');
 }
 
-function getModalForm(type) {
+function getRolesOptions() {
+    const roles = allRoles[currentGuildId] || [];
+    return roles.map(role => `<option value="${role.id}">${role.name}</option>`).join('');
+}
+
+function getChannelsOptions() {
+    return allChannels.map(channel => `<option value="${channel.id}">${channel.guild} - #${channel.name}</option>`).join('');
+}
+
+async function getModalForm(type) {
     const forms = {
         moderation: `
             <div class="form-group">
@@ -447,6 +497,19 @@ function getModalForm(type) {
                     <option value="links">Anti-Links</option>
                     <option value="badwords">Palabras Prohibidas</option>
                 </select>
+            </div>
+            <div class="form-group">
+                <label>Canales (opcional)</label>
+                <div style="margin-bottom: 10px;">
+                    <label style="display: inline-flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="selectAllChannels" onchange="toggleAllChannels(this)" style="margin-right: 8px;">
+                        <span style="font-weight: 600;">TODOS los canales</span>
+                    </label>
+                </div>
+                <select id="moderationChannels" multiple style="height: 120px;">
+                    ${getChannelsOptions()}
+                </select>
+                <small>Vacío = aplica a todos. Mantén Ctrl/Cmd para seleccionar múltiples</small>
             </div>
             <div class="form-group">
                 <label>Mensajes permitidos</label>
@@ -469,6 +532,10 @@ function getModalForm(type) {
                 <label>Duración del castigo (segundos)</label>
                 <input type="number" id="duration" value="60" min="1">
             </div>
+            <div class="form-group">
+                <label>Mensaje de moderación</label>
+                <textarea id="moderationMessage" rows="3" placeholder="Razón del castigo que verá el usuario (ej: Spam detectado)"></textarea>
+            </div>
             <button class="btn-save" onclick="saveAction('moderation')">Guardar Acción</button>
         `,
         autoroles: `
@@ -481,8 +548,23 @@ function getModalForm(type) {
                 </select>
             </div>
             <div class="form-group">
-                <label>Rol a asignar (ID)</label>
-                <input type="text" id="roleId" placeholder="ID del rol">
+                <label>Rol a asignar</label>
+                <select id="roleId">
+                    ${getRolesOptions()}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Canales a monitorear (para actividad)</label>
+                <div style="margin-bottom: 10px;">
+                    <label style="display: inline-flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="selectAllChannelsAutoRole" onchange="toggleAllChannels(this, 'autoRoleChannels')" style="margin-right: 8px;">
+                        <span style="font-weight: 600;">TODOS los canales</span>
+                    </label>
+                </div>
+                <select id="autoRoleChannels" multiple style="height: 120px;">
+                    ${getChannelsOptions()}
+                </select>
+                <small>Mantén Ctrl/Cmd para seleccionar múltiples</small>
             </div>
             <div class="form-group">
                 <label>Días requeridos</label>
@@ -492,12 +574,16 @@ function getModalForm(type) {
                 <label>Mensajes requeridos (solo para actividad)</label>
                 <input type="number" id="messagesRequired" value="50" min="0">
             </div>
+            <div class="form-group">
+                <label>Comentario/Nota (opcional)</label>
+                <textarea id="autoRoleComment" rows="2" placeholder="Nota interna sobre esta regla"></textarea>
+            </div>
             <button class="btn-save" onclick="saveAction('autoroles')">Guardar Acción</button>
         `,
         scheduled: `
             <div class="form-group">
                 <label>Tipo de Tarea</label>
-                <select id="taskType">
+                <select id="taskType" onchange="toggleKickRoleOptions()">
                     <option value="reminder">Recordatorio</option>
                     <option value="cleanup">Limpiar canal</option>
                     <option value="backup">Backup de roles</option>
@@ -514,22 +600,42 @@ function getModalForm(type) {
                 </select>
             </div>
             <div class="form-group">
-                <label>Fecha/Hora</label>
+                <label>Fecha/Hora (tu zona horaria local)</label>
                 <input type="datetime-local" id="scheduleTime">
             </div>
             <div class="form-group">
-                <label>Canal (ID) - Opcional</label>
-                <input type="text" id="channelId" placeholder="ID del canal">
+                <label>Canal</label>
+                <select id="channelId">
+                    <option value="">Ninguno</option>
+                    ${getChannelsOptions()}
+                </select>
             </div>
             <div class="form-group">
                 <label>Mensaje/Descripción</label>
+                <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+                    <button type="button" class="btn-emoji" onclick="openEmojiPicker()" style="padding: 8px 15px; background: #f0f0f0; border: 2px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 1.2rem;">😀 Emojis</button>
+                </div>
                 <textarea id="taskMessage" rows="4" placeholder="Contenido del mensaje o descripción de la tarea"></textarea>
+                <div id="emojiPicker" style="display: none; margin-top: 10px; padding: 15px; background: #f8f9fa; border-radius: 8px; max-height: 200px; overflow-y: auto;"></div>
             </div>
-            <div class="form-group" id="roleKickOptions" style="display: none;">
-                <label>Rol a expulsar (ID)</label>
-                <input type="text" id="kickRoleId" placeholder="ID del rol">
-                <label>Días antes de expulsar</label>
-                <input type="number" id="kickDays" value="7" min="1">
+            <div id="roleKickOptions" style="display: none;">
+                <div class="form-group">
+                    <label>Rol a expulsar</label>
+                    <select id="kickRoleId">
+                        ${getRolesOptions()}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Días antes de expulsar</label>
+                    <input type="number" id="kickDays" value="7" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Excluir roles (opcional)</label>
+                    <select id="excludeRoles" multiple style="height: 100px;">
+                        ${getRolesOptions()}
+                    </select>
+                    <small>Mantén Ctrl/Cmd para seleccionar múltiples</small>
+                </div>
             </div>
             <button class="btn-save" onclick="saveAction('scheduled')">Guardar Tarea</button>
         `,
@@ -537,22 +643,33 @@ function getModalForm(type) {
             <div class="form-group">
                 <label>Tipo de Evento</label>
                 <select id="eventType">
-                    <option value="giveaway">Sorteo</option>
-                    <option value="drop">Drop aleatorio</option>
-                    <option value="reward">Recompensa por invites</option>
+                    <option value="giveaway">Sorteo (Giveaway)</option>
+                    <option value="drop">Drop Aleatorio</option>
+                    <option value="reward">Recompensa por Invites</option>
                 </select>
+                <small>
+                    <strong>Sorteo:</strong> Sorteo programado con duración específica<br>
+                    <strong>Drop:</strong> Recompensa aleatoria que aparece en el canal<br>
+                    <strong>Invites:</strong> Da rol/premio automático al invitar X personas
+                </small>
             </div>
             <div class="form-group">
                 <label>Premio/Recompensa</label>
-                <input type="text" id="prize" placeholder="Descripción del premio">
+                <input type="text" id="prize" placeholder="Descripción del premio o rol">
             </div>
             <div class="form-group">
-                <label>Canal (ID)</label>
-                <input type="text" id="eventChannel" placeholder="ID del canal">
+                <label>Canal</label>
+                <select id="eventChannel">
+                    ${getChannelsOptions()}
+                </select>
             </div>
             <div class="form-group">
                 <label>Duración (minutos)</label>
                 <input type="number" id="eventDuration" value="60" min="1">
+            </div>
+            <div class="form-group">
+                <label>Ganadores (solo para sorteos)</label>
+                <input type="number" id="winnersCount" value="1" min="1">
             </div>
             <button class="btn-save" onclick="saveAction('events')">Guardar Evento</button>
         `,
@@ -560,24 +677,40 @@ function getModalForm(type) {
             <div class="form-group">
                 <label>Tipo de Alerta</label>
                 <select id="alertType">
-                    <option value="keywords">Keywords</option>
-                    <option value="joins">Nuevos miembros</option>
-                    <option value="leaves">Salidas de miembros</option>
+                    <option value="keywords">Keywords (Palabras Clave)</option>
+                    <option value="joins">Nuevos Miembros</option>
+                    <option value="leaves">Salidas de Miembros</option>
+                </select>
+                <small>
+                    <strong>Keywords:</strong> Notifica cuando alguien menciona palabras específicas (útil para detectar competencia, problemas, oportunidades)<br>
+                    <strong>Nuevos Miembros:</strong> Alerta al staff cuando entra alguien nuevo<br>
+                    <strong>Salidas:</strong> Notifica cuando alguien sale del servidor
+                </small>
+            </div>
+            <div class="form-group">
+                <label>Canal de notificación (para staff)</label>
+                <select id="alertChannel">
+                    ${getChannelsOptions()}
                 </select>
             </div>
-            <div class="form-group">
-                <label>Canal de notificación (ID)</label>
-                <input type="text" id="alertChannel" placeholder="ID del canal">
-            </div>
-            <div class="form-group">
+            <div class="form-group" id="keywordsGroup">
                 <label>Keywords (separadas por comas)</label>
-                <textarea id="keywords" rows="3" placeholder="palabra1, palabra2, palabra3"></textarea>
+                <textarea id="keywords" rows="3" placeholder="competencia, problema, ayuda, bug, error, precio"></textarea>
+                <small>El bot monitoreará todos los mensajes y alertará cuando detecte estas palabras</small>
             </div>
             <button class="btn-save" onclick="saveAction('alerts')">Guardar Alerta</button>
         `
     };
     
     return forms[type] || '<p>Formulario no disponible</p>';
+}
+
+function toggleKickRoleOptions() {
+    const taskType = document.getElementById('taskType').value;
+    const kickOptions = document.getElementById('roleKickOptions');
+    if (kickOptions) {
+        kickOptions.style.display = taskType === 'kickRoles' ? 'block' : 'none';
+    }
 }
 
 async function saveAction(type) {
@@ -609,7 +742,22 @@ async function saveAction(type) {
 }
 
 function getFormData(type) {
-    return { type };
+    const data = { type, guildId: currentGuildId };
+    
+    const formElements = document.querySelectorAll('#modalBody input, #modalBody select, #modalBody textarea');
+    formElements.forEach(element => {
+        if (element.id) {
+            if (element.type === 'checkbox') {
+                data[element.id] = element.checked;
+            } else if (element.multiple) {
+                data[element.id] = Array.from(element.selectedOptions).map(opt => opt.value);
+            } else {
+                data[element.id] = element.value;
+            }
+        }
+    });
+    
+    return data;
 }
 
 async function toggleAction(type, actionId, enabled) {
@@ -655,6 +803,85 @@ async function deleteAction(type, actionId) {
     } catch (error) {
         console.error(error);
     }
+}
+
+function toggleAllChannels(checkbox, selectId = 'moderationChannels') {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    
+    if (checkbox.checked) {
+        for (let i = 0; i < select.options.length; i++) {
+            select.options[i].selected = true;
+        }
+    } else {
+        for (let i = 0; i < select.options.length; i++) {
+            select.options[i].selected = false;
+        }
+    }
+}
+
+let guildEmojis = [];
+
+async function loadGuildEmojis() {
+    if (!currentGuildId) return;
+    
+    try {
+        const response = await fetch(`${API_URL}/api/emojis/${currentGuildId}`, {
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            guildEmojis = data.emojis;
+        }
+    } catch (error) {
+        console.error('Error cargando emojis:', error);
+    }
+}
+
+function openEmojiPicker() {
+    const picker = document.getElementById('emojiPicker');
+    const textarea = document.getElementById('taskMessage');
+    
+    if (!picker || !textarea) return;
+    
+    if (picker.style.display === 'none') {
+        picker.style.display = 'block';
+        
+        const defaultEmojis = ['😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🥳', '🤩', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄', '💋', '🩸'];
+        
+        picker.innerHTML = '<div style="display: flex; flex-wrap: wrap; gap: 8px;">';
+        
+        defaultEmojis.forEach(emoji => {
+            picker.innerHTML += `<span style="font-size: 1.5rem; cursor: pointer; padding: 4px; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#e0e0e0'" onmouseout="this.style.background='transparent'" onclick="insertEmoji('${emoji}')">${emoji}</span>`;
+        });
+        
+        if (guildEmojis.length > 0) {
+            picker.innerHTML += '</div><hr style="margin: 15px 0;"><div style="font-weight: 600; margin-bottom: 10px;">Emojis del servidor:</div><div style="display: flex; flex-wrap: wrap; gap: 8px;">';
+            
+            guildEmojis.forEach(emoji => {
+                picker.innerHTML += `<img src="${emoji.url}" alt="${emoji.name}" title=":${emoji.name}:" style="width: 32px; height: 32px; cursor: pointer; border-radius: 4px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'" onclick="insertEmoji('<:${emoji.name}:${emoji.id}>')">`;
+            });
+        }
+        
+        picker.innerHTML += '</div>';
+    } else {
+        picker.style.display = 'none';
+    }
+}
+
+function insertEmoji(emoji) {
+    const textarea = document.getElementById('taskMessage');
+    if (!textarea) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    
+    textarea.value = text.substring(0, start) + emoji + text.substring(end);
+    textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+    textarea.focus();
 }
 
 async function logout() {

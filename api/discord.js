@@ -53,7 +53,8 @@ module.exports = (client) => {
                     .map(channel => ({
                         id: channel.id,
                         name: channel.name,
-                        guild: guild.name
+                        guild: guild.name,
+                        guildId: guild.id
                     }));
                 channelsData.push(...channels);
             });
@@ -67,6 +68,80 @@ module.exports = (client) => {
             res.status(503).json({ 
                 success: false,
                 error: 'El bot aún se está conectando. Intenta de nuevo en unos segundos.'
+            });
+        }
+    });
+
+    router.get('/roles/:guildId', requireAuth, async (req, res) => {
+        const { guildId } = req.params;
+        
+        try {
+            await waitForClient(client);
+
+            const guild = client.guilds.cache.get(guildId);
+            
+            if (!guild) {
+                return res.status(404).json({ 
+                    success: false,
+                    error: 'Servidor no encontrado' 
+                });
+            }
+
+            const rolesData = guild.roles.cache
+                .filter(role => role.name !== '@everyone')
+                .map(role => ({
+                    id: role.id,
+                    name: role.name,
+                    color: role.hexColor,
+                    position: role.position
+                }))
+                .sort((a, b) => b.position - a.position);
+
+            res.json({ 
+                success: true,
+                roles: rolesData 
+            });
+        } catch (error) {
+            console.error('Error obteniendo roles:', error);
+            res.status(503).json({ 
+                success: false,
+                error: 'Error obteniendo roles'
+            });
+        }
+    });
+
+    router.get('/emojis/:guildId', requireAuth, async (req, res) => {
+        const { guildId } = req.params;
+        
+        try {
+            await waitForClient(client);
+
+            const guild = client.guilds.cache.get(guildId);
+            
+            if (!guild) {
+                return res.status(404).json({ 
+                    success: false,
+                    error: 'Servidor no encontrado' 
+                });
+            }
+
+            const emojisData = guild.emojis.cache
+                .map(emoji => ({
+                    id: emoji.id,
+                    name: emoji.name,
+                    url: emoji.url,
+                    animated: emoji.animated
+                }));
+
+            res.json({ 
+                success: true,
+                emojis: emojisData 
+            });
+        } catch (error) {
+            console.error('Error obteniendo emojis:', error);
+            res.status(503).json({ 
+                success: false,
+                error: 'Error obteniendo emojis'
             });
         }
     });
