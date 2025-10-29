@@ -25,12 +25,13 @@ async function getDiscordClient() {
         discordClient = new Client({
             intents: [
                 GatewayIntentBits.Guilds,
-                GatewayIntentBits.GuildMessages
+                GatewayIntentBits.GuildMessages,
+                GatewayIntentBits.GuildMembers
             ]
         });
 
         discordClient.once('ready', () => {
-            console.log(`✅ Bot conectado como ${discordClient.user.tag}`);
+            console.log(`Bot conectado como ${discordClient.user.tag}`);
             clientReady = true;
         });
 
@@ -136,6 +137,124 @@ router.post('/send-message', requireAuth, async (req, res) => {
         res.status(500).json({ 
             success: false,
             error: 'Error enviando mensaje: ' + error.message
+        });
+    }
+});
+
+router.get('/servers', requireAuth, async (req, res) => {
+    try {
+        const client = await getDiscordClient();
+        
+        if (!clientReady) {
+            return res.status(503).json({ 
+                success: false,
+                error: 'El bot aún se está conectando.' 
+            });
+        }
+
+        const guilds = client.guilds.cache;
+        const serversData = [];
+
+        guilds.forEach(guild => {
+            serversData.push({
+                id: guild.id,
+                name: guild.name,
+                memberCount: guild.memberCount
+            });
+        });
+
+        res.json({ 
+            success: true,
+            servers: serversData 
+        });
+    } catch (error) {
+        console.error('Error obteniendo servidores:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Error obteniendo servidores: ' + error.message
+        });
+    }
+});
+
+router.get('/stats/:guildId', requireAuth, async (req, res) => {
+    const { guildId } = req.params;
+
+    try {
+        const client = await getDiscordClient();
+        
+        if (!clientReady) {
+            return res.status(503).json({ 
+                success: false,
+                error: 'El bot aún se está conectando.' 
+            });
+        }
+
+        const guild = client.guilds.cache.get(guildId);
+        
+        if (!guild) {
+            return res.status(404).json({ 
+                success: false,
+                error: 'Servidor no encontrado' 
+            });
+        }
+
+        await guild.members.fetch();
+
+        const roleStats = [];
+        const roles = guild.roles.cache
+            .filter(role => role.name !== '@everyone')
+            .sort((a, b) => b.position - a.position);
+
+        const roleIcons = {
+            'admin': '👑',
+            'moderator': '🛡️',
+            'mod': '🛡️',
+            'vip': '⭐',
+            'premium': '💎',
+            'member': '👤',
+            'bot': '🤖',
+            'verified': '✅',
+            'developer': '💻',
+            'designer': '🎨',
+            'supporter': '❤️',
+            'helper': '🆘',
+            'default': '📌'
+        };
+
+        roles.forEach(role => {
+            const count = role.members.size;
+            if (count > 0) {
+                const roleName = role.name.toLowerCase();
+                let icon = roleIcons.default;
+                
+                for (const [key, value] of Object.entries(roleIcons)) {
+                    if (roleName.includes(key)) {
+                        icon = value;
+                        break;
+                    }
+                }
+
+                roleStats.push({
+                    name: role.name,
+                    count: count,
+                    color: role.hexColor !== '#000000' ? role.hexColor : '#667eea',
+                    icon: icon
+                });
+            }
+        });
+
+        res.json({ 
+            success: true,
+            stats: {
+                totalMembers: guild.memberCount,
+                roles: roleStats
+            }
+        });
+    } catch (error) {
+        console.error('Error obteniendo estadísticas:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Error obteniendo estadísticas: ' + error.message
         });
     }
 });

@@ -12,36 +12,74 @@
             <div class="header-content">
                 <div>
                     <h1>🎮 Discord Dashboard</h1>
-                    <p>Envía mensajes a tus canales de Discord</p>
+                    <p>Panel de control del Bot NSL</p>
                 </div>
                 <button onclick="logout()" class="btn-logout">Cerrar Sesión</button>
             </div>
         </header>
 
+        <div class="tabs">
+            <button class="tab-button active" data-tab="bot">🤖 Bot</button>
+            <button class="tab-button" data-tab="stats">📊 Stats NSL</button>
+        </div>
+
         <main>
-            <div class="card">
-                <div class="form-group">
-                    <label for="channelSelect">Selecciona un canal</label>
-                    <select id="channelSelect">
-                        <option value="">Cargando canales...</option>
-                    </select>
+            <div id="bot-tab" class="tab-content active">
+                <div class="card">
+                    <h2 class="section-title">Enviar Mensaje</h2>
+                    <div class="form-group">
+                        <label for="channelSearch">Selecciona un canal</label>
+                        <div class="select-container">
+                            <input 
+                                type="text" 
+                                id="channelSearch" 
+                                placeholder="Busca un canal..."
+                                autocomplete="off"
+                            >
+                            <div id="channelDropdown" class="channel-dropdown"></div>
+                        </div>
+                        <input type="hidden" id="selectedChannelId">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="messageInput">Mensaje</label>
+                        <textarea 
+                            id="messageInput" 
+                            placeholder="Escribe tu mensaje aquí..."
+                            rows="6"
+                        ></textarea>
+                    </div>
+
+                    <button id="sendBtn" class="btn-send">
+                        <span class="btn-text">Enviar Mensaje</span>
+                        <span class="btn-loading">Enviando...</span>
+                    </button>
+
+                    <div id="notification" class="notification"></div>
                 </div>
+            </div>
 
-                <div class="form-group">
-                    <label for="messageInput">Mensaje</label>
-                    <textarea 
-                        id="messageInput" 
-                        placeholder="Escribe tu mensaje aquí..."
-                        rows="6"
-                    ></textarea>
+            <div id="stats-tab" class="tab-content">
+                <div class="card">
+                    <h2 class="section-title">📊 Estadísticas del Servidor</h2>
+                    
+                    <div class="stats-grid" id="statsGrid">
+                        <div class="stat-card loading">
+                            <div class="stat-icon">⏳</div>
+                            <div class="stat-info">
+                                <div class="stat-label">Cargando...</div>
+                                <div class="stat-value">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="server-selector">
+                        <label for="serverSelect">Servidor:</label>
+                        <select id="serverSelect">
+                            <option value="">Cargando servidores...</option>
+                        </select>
+                    </div>
                 </div>
-
-                <button id="sendBtn" class="btn-send">
-                    <span class="btn-text">Enviar Mensaje</span>
-                    <span class="btn-loading">Enviando...</span>
-                </button>
-
-                <div id="notification" class="notification"></div>
             </div>
         </main>
 
