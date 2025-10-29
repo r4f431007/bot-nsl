@@ -12,8 +12,12 @@ const serverSelect = document.getElementById('serverSelect');
 let allChannels = [];
 let selectedChannel = null;
 let allServers = [];
+let checkingAuth = false;
 
 async function checkAuth() {
+    if (checkingAuth) return;
+    checkingAuth = true;
+    
     try {
         const response = await fetch(`${API_URL}/api/check-auth`, {
             credentials: 'include'
@@ -21,11 +25,13 @@ async function checkAuth() {
         const data = await response.json();
         
         if (!data.authenticated) {
-            window.location.href = '/login.html';
+            window.location.replace('/login.html');
         }
     } catch (error) {
         console.error('Error checking auth:', error);
-        window.location.href = '/login.html';
+        window.location.replace('/login.html');
+    } finally {
+        checkingAuth = false;
     }
 }
 
@@ -56,7 +62,7 @@ async function loadChannels() {
         });
         
         if (response.status === 401) {
-            window.location.href = '/login.html';
+            window.location.replace('/login.html');
             return;
         }
         
@@ -193,7 +199,7 @@ async function sendMessage() {
         });
         
         if (response.status === 401) {
-            window.location.href = '/login.html';
+            window.location.replace('/login.html');
             return;
         }
         
@@ -221,7 +227,7 @@ async function loadServers() {
         });
         
         if (response.status === 401) {
-            window.location.href = '/login.html';
+            window.location.replace('/login.html');
             return;
         }
         
@@ -265,7 +271,7 @@ async function loadStats(guildId) {
         });
         
         if (response.status === 401) {
-            window.location.href = '/login.html';
+            window.location.replace('/login.html');
             return;
         }
         
@@ -332,10 +338,10 @@ async function logout() {
             method: 'POST',
             credentials: 'include'
         });
-        window.location.href = '/login.html';
+        window.location.replace('/login.html');
     } catch (error) {
         console.error('Error logging out:', error);
-        window.location.href = '/login.html';
+        window.location.replace('/login.html');
     }
 }
 

@@ -6,7 +6,12 @@ const passwordInput = document.getElementById('password');
 const loginBtn = document.getElementById('loginBtn');
 const errorMessage = document.getElementById('errorMessage');
 
+let checkingAuth = false;
+
 async function checkAuth() {
+    if (checkingAuth) return;
+    checkingAuth = true;
+    
     try {
         const response = await fetch(`${API_URL}/api/check-auth`, {
             credentials: 'include'
@@ -14,10 +19,12 @@ async function checkAuth() {
         const data = await response.json();
         
         if (data.authenticated) {
-            window.location.href = '/';
+            window.location.replace('/');
         }
     } catch (error) {
         console.error('Error checking auth:', error);
+    } finally {
+        checkingAuth = false;
     }
 }
 
@@ -54,23 +61,17 @@ loginForm.addEventListener('submit', async (e) => {
         const data = await response.json();
         
         if (response.ok && data.success) {
-            errorMessage.style.background = '#d4edda';
-            errorMessage.style.color = '#155724';
-            errorMessage.style.borderColor = '#c3e6cb';
-            showError('✅ Login exitoso! Redirigiendo...');
-            
-            setTimeout(() => {
-                window.location.href = '/';
-            }, 1000);
+            window.location.replace('/');
         } else {
             showError(data.error || '❌ Error al iniciar sesión');
             emailInput.classList.add('error');
             passwordInput.classList.add('error');
+            loginBtn.disabled = false;
+            loginBtn.classList.remove('loading');
         }
     } catch (error) {
         console.error('Error:', error);
         showError('❌ Error de conexión. Verifica tu conexión a internet.');
-    } finally {
         loginBtn.disabled = false;
         loginBtn.classList.remove('loading');
     }
@@ -81,9 +82,7 @@ function showError(message) {
     errorMessage.classList.add('show');
     
     setTimeout(() => {
-        if (!message.includes('✅')) {
-            errorMessage.classList.remove('show');
-        }
+        errorMessage.classList.remove('show');
     }, 5000);
 }
 
