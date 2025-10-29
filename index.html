@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 Discord Dashboard</h1>
+            <p>Envía mensajes a tus canales de Discord</p>
+        </header>
+
+        <main>
+            <div class="card">
+                <div class="form-group">
+                    <label for="channelSelect">Selecciona un canal</label>
+                    <select id="channelSelect">
+                        <option value="">Cargando canales...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="messageInput">Mensaje</label>
+                    <textarea 
+                        id="messageInput" 
+                        placeholder="Escribe tu mensaje aquí..."
+                        rows="6"
+                    ></textarea>
+                </div>
+
+                <button id="sendBtn" class="btn-send">
+                    <span class="btn-text">Enviar Mensaje</span>
+                    <span class="btn-loading">Enviando...</span>
+                </button>
+
+                <div id="notification" class="notification"></div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Dashboard de Discord Bot - 2025</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

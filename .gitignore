@@ -1,0 +1,55 @@
+# ============================
+# Node.js / JavaScript Projects
+# ============================
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Build output
+dist/
+build/
+.cache/
+.next/
+out/
+.vercel/
+.tmp/
+temp/
+coverage/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor folders
+.vscode/
+.idea/
+*.swp
+
+# Optional: ignore test reports
+test-output/
+reports/
+
+# Optional: Astro / Vite / React specifics
+.svelte-kit/
+vite.config.ts.timestamp*
