@@ -5,9 +5,33 @@ const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
 const notification = document.getElementById('notification');
 
+async function checkAuth() {
+    try {
+        const response = await fetch(`${API_URL}/api/check-auth`, {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        if (!data.authenticated) {
+            window.location.href = '/login.html';
+        }
+    } catch (error) {
+        console.error('Error checking auth:', error);
+        window.location.href = '/login.html';
+    }
+}
+
 async function loadChannels() {
     try {
-        const response = await fetch(`${API_URL}/api/channels`);
+        const response = await fetch(`${API_URL}/api/channels`, {
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            window.location.href = '/login.html';
+            return;
+        }
+        
         const data = await response.json();
         
         channelSelect.innerHTML = '<option value="">Selecciona un canal</option>';
@@ -47,8 +71,14 @@ async function sendMessage() {
             headers: {
                 'Content-Type': 'application/json'
             },
+            credentials: 'include',
             body: JSON.stringify({ channelId, message })
         });
+        
+        if (response.status === 401) {
+            window.location.href = '/login.html';
+            return;
+        }
         
         const data = await response.json();
         
@@ -64,6 +94,18 @@ async function sendMessage() {
     } finally {
         sendBtn.disabled = false;
         sendBtn.classList.remove('loading');
+    }
+}
+
+async function logout() {
+    try {
+        await fetch(`${API_URL}/api/logout`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        window.location.href = '/login.html';
+    } catch (error) {
+        console.error('Error logging out:', error);
     }
 }
 
@@ -84,4 +126,5 @@ messageInput.addEventListener('keydown', (e) => {
     }
 });
 
+checkAuth();
 loadChannels();

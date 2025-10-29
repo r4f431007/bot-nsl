@@ -20,9 +20,16 @@ body {
 }
 
 header {
-    text-align: center;
     color: white;
     margin-bottom: 30px;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
 header h1 {
@@ -34,6 +41,24 @@ header h1 {
 header p {
     font-size: 1.1rem;
     opacity: 0.9;
+}
+
+.btn-logout {
+    padding: 10px 20px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 2px solid white;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    backdrop-filter: blur(10px);
+}
+
+.btn-logout:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
 }
 
 .card {
