@@ -38,15 +38,25 @@ module.exports = () => {
                 [type]
             );
             
-            const actions = result.rows.map(row => ({
-                id: row.id,
-                type: row.type,
-                name: row.name,
-                description: row.description,
-                enabled: Boolean(row.enabled),
-                createdAt: row.created_at,
-                ...JSON.parse(row.config)
-            }));
+            const actions = result.rows.map(row => {
+                let config = {};
+                try {
+                    config = typeof row.config === 'string' ? JSON.parse(row.config) : row.config;
+                } catch (e) {
+                    console.error('Error parsing config for action:', row.id, e);
+                    config = {};
+                }
+                
+                return {
+                    id: row.id,
+                    type: row.type,
+                    name: row.name,
+                    description: row.description,
+                    enabled: Boolean(row.enabled),
+                    createdAt: row.created_at,
+                    ...config
+                };
+            });
             
             res.json({ 
                 success: true,
@@ -63,14 +73,16 @@ module.exports = () => {
 
     router.post('/actions/:type', requireAuth, async (req, res) => {
         const { type } = req.params;
-        const actionData = req.body;
+        let actionData = req.body;
         
         try {
+            const cleanData = JSON.parse(JSON.stringify(actionData));
+            
             const newAction = {
                 id: Date.now().toString(),
                 type: type,
-                name: generateActionName(type, actionData),
-                description: generateActionDescription(type, actionData),
+                name: generateActionName(type, cleanData),
+                description: generateActionDescription(type, cleanData),
                 enabled: true,
                 createdAt: new Date().toISOString()
             };
@@ -83,14 +95,14 @@ module.exports = () => {
                     newAction.type,
                     newAction.name,
                     newAction.description,
-                    JSON.stringify(actionData),
+                    JSON.stringify(cleanData),
                     newAction.enabled
                 ]
             );
             
             res.json({ 
                 success: true,
-                action: { ...newAction, ...actionData }
+                action: { ...newAction, ...cleanData }
             });
         } catch (error) {
             console.error('Error creando acción:', error);
