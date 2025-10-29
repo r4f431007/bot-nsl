@@ -17,6 +17,7 @@ let allRoles = {};
 let checkingAuth = false;
 let currentActionType = '';
 let currentGuildId = '';
+let selectedModalChannels = [];
 
 async function checkAuth() {
     if (checkingAuth) return;
@@ -137,7 +138,6 @@ async function loadRoles(guildId) {
     return [];
 }
 
-
 function getChannelIcon(channelName) {
     const name = channelName.toLowerCase();
     
@@ -229,60 +229,45 @@ channelSearch.addEventListener('focus', () => {
     renderDropdown(filtered);
 });
 
-channelSearch.addEventListener('click', () => {
-    const selectContainer = channelSearch.parentElement;
-    selectContainer.classList.add('open');
-    const filtered = filterChannels(channelSearch.value);
-    renderDropdown(filtered);
-});
-
-let dropdownCloseTimeout;
-
-channelSearch.addEventListener('blur', (e) => {
-    const selectContainer = channelSearch.parentElement;
-    dropdownCloseTimeout = setTimeout(() => {
-        selectContainer.classList.remove('open');
-        channelDropdown.classList.remove('show');
-    }, 300);
-});
-
-channelDropdown.addEventListener('mousedown', (e) => {
-    if (dropdownCloseTimeout) {
-        clearTimeout(dropdownCloseTimeout);
-    }
-});
-
-channelDropdown.addEventListener('mouseleave', () => {
-    if (document.activeElement !== channelSearch) {
-        const selectContainer = channelSearch.parentElement;
-        dropdownCloseTimeout = setTimeout(() => {
-            selectContainer.classList.remove('open');
-            channelDropdown.classList.remove('show');
-        }, 300);
-    }
-});
-
 document.addEventListener('click', (e) => {
     const selectContainer = document.querySelector('.select-container');
-    if (!channelSearch.contains(e.target) && !channelDropdown.contains(e.target)) {
-        if (selectContainer) selectContainer.classList.remove('open');
+    if (selectContainer && !selectContainer.contains(e.target)) {
+        selectContainer.classList.remove('open');
         channelDropdown.classList.remove('show');
     }
 });
 
-async function sendMessage() {
-    const channelId = selectedChannelId.value;
-    const message = messageInput.value.trim();
+function filterChannels(searchTerm) {
+    const normalizedSearch = normalizeText(searchTerm);
     
-    if (!channelId) {
+    if (!normalizedSearch) {
+        return allChannels;
+    }
+    
+    return allChannels.filter(channel => {
+        const normalizedGuild = normalizeText(channel.guild);
+        const normalizedName = normalizeText(channel.name);
+        return normalizedGuild.includes(normalizedSearch) || normalizedName.includes(normalizedSearch);
+    });
+}
+
+function normalizeText(text) {
+    return text
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+
+async function sendMessage() {
+    if (!selectedChannel) {
         showNotification('⚠️ Por favor selecciona un canal', 'error');
-        channelSearch.focus();
         return;
     }
     
+    const message = messageInput.value.trim();
+    
     if (!message) {
         showNotification('⚠️ Por favor escribe un mensaje', 'error');
-        messageInput.focus();
         return;
     }
     
@@ -296,24 +281,22 @@ async function sendMessage() {
                 'Content-Type': 'application/json'
             },
             credentials: 'include',
-            body: JSON.stringify({ channelId, message })
+            body: JSON.stringify({
+                channelId: selectedChannel.id,
+                message: message
+            })
         });
-        
-        if (response.status === 401) {
-            window.location.replace('/login.html');
-            return;
-        }
         
         const data = await response.json();
         
-        if (response.ok && data.success) {
+        if (data.success) {
             showNotification('✅ Mensaje enviado correctamente', 'success');
             messageInput.value = '';
         } else {
-            showNotification(`❌ ${data.error || 'Error enviando mensaje'}`, 'error');
+            showNotification('❌ ' + (data.error || 'Error al enviar el mensaje'), 'error');
         }
     } catch (error) {
-        showNotification('❌ Error de conexión al enviar mensaje', 'error');
+        showNotification('❌ Error de conexión', 'error');
         console.error(error);
     } finally {
         sendBtn.disabled = false;
@@ -334,115 +317,79 @@ async function loadServers() {
         
         const data = await response.json();
         
-        if (!data.success) {
-            console.error('Error cargando servidores:', data.error);
-            return;
-        }
-        
-        allServers = data.servers;
-        
-        serverSelect.innerHTML = '';
-        
-        if (allServers.length === 0) {
-            serverSelect.innerHTML = '<option value="">No hay servidores</option>';
-            return;
-        }
-        
-        allServers.forEach(server => {
-            const option = document.createElement('option');
-            option.value = server.id;
-            option.textContent = server.name;
-            serverSelect.appendChild(option);
-        });
-        
-        if (allServers.length > 0) {
-            currentGuildId = allServers[0].id;
-            loadStats(currentGuildId);
-            await loadRoles(currentGuildId);
+        if (data.success && data.servers && data.servers.length > 0) {
+            allServers = data.servers;
+            populateServerSelect();
         }
     } catch (error) {
         console.error('Error cargando servidores:', error);
     }
 }
 
-async function loadStats(guildId) {
+function populateServerSelect() {
+    serverSelect.innerHTML = allServers.map(server => 
+        `<option value="${server.id}">${server.name}</option>`
+    ).join('');
+    
+    if (allServers.length > 0) {
+        loadStats(allServers[0].id);
+    }
+}
+
+serverSelect.addEventListener('change', (e) => {
+    const serverId = e.target.value;
+    if (serverId) {
+        loadStats(serverId);
+    }
+});
+
+async function loadStats(serverId) {
     statsGrid.innerHTML = '<div class="stat-card loading"><div class="stat-icon">⏳</div><div class="stat-info"><div class="stat-label">Cargando...</div><div class="stat-value">-</div></div></div>';
     
     try {
-        const response = await fetch(`${API_URL}/api/stats/${guildId}`, {
+        const response = await fetch(`${API_URL}/api/stats/${serverId}`, {
             credentials: 'include'
         });
         
-        if (response.status === 401) {
-            window.location.replace('/login.html');
-            return;
-        }
-        
         const data = await response.json();
         
-        if (!data.success) {
-            console.error('Error cargando stats:', data.error);
-            return;
+        if (data.success) {
+            renderStats(data.stats);
+        } else {
+            statsGrid.innerHTML = '<div class="stat-card"><div class="stat-info"><div class="stat-label">Error al cargar estadísticas</div></div></div>';
         }
-        
-        renderStats(data.stats);
     } catch (error) {
-        console.error('Error cargando stats:', error);
+        console.error('Error:', error);
+        statsGrid.innerHTML = '<div class="stat-card"><div class="stat-info"><div class="stat-label">Error de conexión</div></div></div>';
     }
 }
 
 function renderStats(stats) {
-    statsGrid.innerHTML = '';
+    const statsArray = [
+        { icon: '👥', label: 'Miembros Totales', value: stats.memberCount || 0 },
+        { icon: '🟢', label: 'Miembros En Línea', value: stats.onlineMembers || 0 },
+        { icon: '💬', label: 'Canales de Texto', value: stats.textChannels || 0 },
+        { icon: '🔊', label: 'Canales de Voz', value: stats.voiceChannels || 0 },
+        { icon: '👑', label: 'Roles', value: stats.roleCount || 0 },
+        { icon: '😊', label: 'Emojis', value: stats.emojiCount || 0 }
+    ];
     
-    const totalCard = document.createElement('div');
-    totalCard.className = 'stat-card';
-    totalCard.innerHTML = `
-        <div class="stat-icon">👥</div>
-        <div class="stat-info">
-            <div class="stat-label">Total Miembros</div>
-            <div class="stat-value">${stats.totalMembers}</div>
-        </div>
-    `;
-    statsGrid.appendChild(totalCard);
-    
-    stats.roles.forEach(role => {
-        const card = document.createElement('div');
-        card.className = 'stat-card';
-        card.style.background = `linear-gradient(135deg, ${role.color || '#667eea'} 0%, ${adjustColor(role.color || '#667eea', -20)} 100%)`;
-        card.innerHTML = `
-            <div class="stat-icon">${role.icon}</div>
+    statsGrid.innerHTML = statsArray.map(stat => `
+        <div class="stat-card">
+            <div class="stat-icon">${stat.icon}</div>
             <div class="stat-info">
-                <div class="stat-label">${role.name}</div>
-                <div class="stat-value">${role.count}</div>
+                <div class="stat-label">${stat.label}</div>
+                <div class="stat-value">${stat.value}</div>
             </div>
-        `;
-        statsGrid.appendChild(card);
-    });
+        </div>
+    `).join('');
 }
-
-function adjustColor(color, amount) {
-    const clamp = (num) => Math.min(255, Math.max(0, num));
-    const num = parseInt(color.replace('#', ''), 16);
-    const r = clamp((num >> 16) + amount);
-    const g = clamp(((num >> 8) & 0x00FF) + amount);
-    const b = clamp((num & 0x0000FF) + amount);
-    return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
-}
-
-serverSelect.addEventListener('change', async (e) => {
-    if (e.target.value) {
-        currentGuildId = e.target.value;
-        loadStats(currentGuildId);
-        await loadRoles(currentGuildId);
-    }
-});
 
 async function loadAllActions() {
-    loadActions('moderation');
-    loadActions('autoroles');
-    loadActions('scheduled');
-    loadActions('events');
-    loadActions('alerts');
+    const types = ['moderation', 'autoroles', 'scheduled', 'events', 'alerts'];
+    for (const type of types) {
+        await loadActions(type);
+    }
 }
 
 async function loadActions(type) {
@@ -451,38 +398,31 @@ async function loadActions(type) {
             credentials: 'include'
         });
         
-        if (response.status === 401) {
-            window.location.replace('/login.html');
-            return;
-        }
-        
         const data = await response.json();
         
         if (data.success) {
             renderActions(type, data.actions || []);
         }
     } catch (error) {
-        console.error(`Error cargando acciones ${type}:`, error);
+        console.error(`Error cargando ${type}:`, error);
     }
 }
 
 function renderActions(type, actions) {
     const container = document.getElementById(`${type}Actions`);
     
+    if (!container) return;
+    
     if (actions.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">No hay acciones configuradas</p>';
+        container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No hay acciones configuradas</p>';
         return;
     }
     
-    container.innerHTML = '';
-    
-    actions.forEach(action => {
-        const card = document.createElement('div');
-        card.className = 'action-card';
-        card.innerHTML = `
+    container.innerHTML = actions.map(action => `
+        <div class="action-card">
             <div class="action-info">
-                <div class="action-title">${action.name}</div>
-                <div class="action-description">${action.description}</div>
+                <div class="action-title">${action.name || 'Acción sin nombre'}</div>
+                <div class="action-description">${action.description || 'Sin descripción'}</div>
             </div>
             <div class="action-controls">
                 <label class="toggle-switch">
@@ -492,49 +432,185 @@ function renderActions(type, actions) {
                 <button class="btn-action btn-edit" onclick="editAction('${type}', '${action.id}')">Editar</button>
                 <button class="btn-action btn-delete" onclick="deleteAction('${type}', '${action.id}')">Eliminar</button>
             </div>
-        `;
-        container.appendChild(card);
-    });
+        </div>
+    `).join('');
+}
+
+function getChannelsOptions() {
+    return allChannels.map(ch => 
+        `<option value="${ch.id}">${ch.guild} - #${ch.name}</option>`
+    ).join('');
+}
+
+function getRolesOptions() {
+    if (!currentGuildId || !allRoles[currentGuildId]) {
+        return '<option value="">Selecciona un servidor primero</option>';
+    }
+    
+    return allRoles[currentGuildId].map(role => 
+        `<option value="${role.id}">${role.name}</option>`
+    ).join('');
 }
 
 async function openActionModal(type) {
     currentActionType = type;
     
-    if (!currentGuildId && allServers.length > 0) {
+    if (allServers.length === 0) {
+        await loadServers();
+    }
+    
+    if (allServers.length > 0 && !currentGuildId) {
         currentGuildId = allServers[0].id;
         await loadRoles(currentGuildId);
     }
     
-    await loadGuildEmojis();
-    
-    const modal = document.getElementById('actionModal');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
-    
-    const titles = {
+    const modalTitle = {
         moderation: '🛡️ Nueva Acción de Moderación',
-        autoroles: '👥 Nueva Acción de Auto-Role',
+        autoroles: '👥 Nueva Acción de Auto-Roles',
         scheduled: '📅 Nueva Tarea Programada',
         events: '🎯 Nuevo Evento Automático',
         alerts: '🔔 Nueva Alerta'
     };
     
-    modalTitle.textContent = titles[type];
-    modalBody.innerHTML = await getModalForm(type);
-    modal.classList.add('show');
+    document.getElementById('modalTitle').textContent = modalTitle[type] || 'Nueva Acción';
+    document.getElementById('modalBody').innerHTML = await getModalForm(type);
+    
+    actionModal.classList.add('show');
+    
+    initializeModalDropdown();
+}
+
+function initializeModalDropdown() {
+    const dropdown = document.querySelector('#moderationChannelsDropdown');
+    if (!dropdown) return;
+    
+    const header = dropdown.querySelector('.modal-dropdown-header');
+    const list = dropdown.querySelector('.modal-dropdown-list');
+    const search = dropdown.querySelector('.modal-dropdown-search');
+    const optionsContainer = dropdown.querySelector('.modal-dropdown-options');
+    
+    if (!header || !list || !search || !optionsContainer) return;
+    
+    selectedModalChannels = [];
+    
+    renderModalDropdownOptions(allChannels, optionsContainer);
+    
+    header.addEventListener('click', () => {
+        list.classList.toggle('show');
+        if (list.classList.contains('show')) {
+            search.focus();
+        }
+    });
+    
+    search.addEventListener('input', (e) => {
+        const filtered = filterChannels(e.target.value);
+        renderModalDropdownOptions(filtered, optionsContainer);
+    });
+    
+    document.addEventListener('click', (e) => {
+        if (!dropdown.contains(e.target)) {
+            list.classList.remove('show');
+        }
+    });
+}
+
+function renderModalDropdownOptions(channels, container) {
+    if (channels.length === 0) {
+        container.innerHTML = '<div class="dropdown-option" style="text-align: center; color: #999;">No se encontraron canales</div>';
+        return;
+    }
+    
+    container.innerHTML = '';
+    
+    channels.forEach(channel => {
+        const option = document.createElement('div');
+        option.className = 'dropdown-option';
+        option.dataset.channelId = channel.id;
+        
+        if (selectedModalChannels.includes(channel.id)) {
+            option.classList.add('selected');
+        }
+        
+        const icon = getChannelIcon(channel.name);
+        
+        option.innerHTML = `
+            <span class="channel-icon">${icon}</span>
+            <div class="channel-info">
+                <div class="guild-name">${channel.guild}</div>
+                <div class="channel-name">#${channel.name}</div>
+            </div>
+        `;
+        
+        option.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleModalChannel(channel.id, option);
+        });
+        
+        container.appendChild(option);
+    });
+}
+
+function toggleModalChannel(channelId, optionElement) {
+    const index = selectedModalChannels.indexOf(channelId);
+    
+    if (index > -1) {
+        selectedModalChannels.splice(index, 1);
+        optionElement.classList.remove('selected');
+    } else {
+        selectedModalChannels.push(channelId);
+        optionElement.classList.add('selected');
+    }
+    
+    updateModalDropdownText();
+    updateHiddenInput();
+}
+
+function updateModalDropdownText() {
+    const textElement = document.querySelector('#moderationChannelsDropdown .modal-dropdown-text');
+    if (!textElement) return;
+    
+    if (selectedModalChannels.length === 0) {
+        textElement.textContent = 'Selecciona canales...';
+    } else if (selectedModalChannels.length === 1) {
+        const channel = allChannels.find(ch => ch.id === selectedModalChannels[0]);
+        textElement.textContent = channel ? `${channel.guild} - #${channel.name}` : '1 canal seleccionado';
+    } else {
+        textElement.textContent = `${selectedModalChannels.length} canales seleccionados`;
+    }
+}
+
+function updateHiddenInput() {
+    const hiddenInput = document.getElementById('moderationChannels');
+    if (hiddenInput) {
+        hiddenInput.value = selectedModalChannels.join(',');
+    }
+}
+
+function toggleAllChannelsDropdown(checkbox, dropdownId) {
+    if (checkbox.checked) {
+        selectedModalChannels = allChannels.map(ch => ch.id);
+        
+        document.querySelectorAll(`#${dropdownId} .dropdown-option`).forEach(opt => {
+            opt.classList.add('selected');
+        });
+        
+        updateModalDropdownText();
+        updateHiddenInput();
+    } else {
+        selectedModalChannels = [];
+        
+        document.querySelectorAll(`#${dropdownId} .dropdown-option`).forEach(opt => {
+            opt.classList.remove('selected');
+        });
+        
+        updateModalDropdownText();
+        updateHiddenInput();
+    }
 }
 
 function closeActionModal() {
-    document.getElementById('actionModal').classList.remove('show');
-}
-
-function getRolesOptions() {
-    const roles = allRoles[currentGuildId] || [];
-    return roles.map(role => `<option value="${role.id}">${role.name}</option>`).join('');
-}
-
-function getChannelsOptions() {
-    return allChannels.map(channel => `<option value="${channel.id}">${channel.guild} - #${channel.name}</option>`).join('');
+    actionModal.classList.remove('show');
+    selectedModalChannels = [];
 }
 
 async function getModalForm(type) {
@@ -554,14 +630,22 @@ async function getModalForm(type) {
                 <label>Canales (opcional)</label>
                 <div style="margin-bottom: 10px;">
                     <label style="display: inline-flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="selectAllChannels" onchange="toggleAllChannels(this)" style="margin-right: 8px;">
+                        <input type="checkbox" id="selectAllChannels" onchange="toggleAllChannelsDropdown(this, 'moderationChannelsDropdown')" style="margin-right: 8px;">
                         <span style="font-weight: 600;">TODOS los canales</span>
                     </label>
                 </div>
-                <select id="moderationChannels" multiple style="height: 120px;">
-                    ${getChannelsOptions()}
-                </select>
-                <small>Vacío = aplica a todos. Mantén Ctrl/Cmd para seleccionar múltiples</small>
+                <div class="modal-custom-dropdown" id="moderationChannelsDropdown">
+                    <div class="modal-dropdown-header" tabindex="0">
+                        <span class="modal-dropdown-text">Selecciona canales...</span>
+                        <span class="modal-dropdown-arrow">▼</span>
+                    </div>
+                    <div class="modal-dropdown-list">
+                        <input type="text" class="modal-dropdown-search" placeholder="Buscar canales..." autocomplete="off" />
+                        <div class="modal-dropdown-options"></div>
+                    </div>
+                </div>
+                <input type="hidden" id="moderationChannels" />
+                <small>Vacío = aplica a todos. Click para seleccionar múltiples</small>
             </div>
             <div class="form-group">
                 <label>Mensajes permitidos</label>
@@ -678,15 +762,9 @@ async function getModalForm(type) {
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Días antes de expulsar</label>
-                    <input type="number" id="kickDays" value="7" min="1">
-                </div>
-                <div class="form-group">
-                    <label>Excluir roles (opcional)</label>
-                    <select id="excludeRoles" multiple style="height: 100px;">
-                        ${getRolesOptions()}
-                    </select>
-                    <small>Mantén Ctrl/Cmd para seleccionar múltiples</small>
+                    <label>Días de inactividad</label>
+                    <input type="number" id="inactiveDays" value="30" min="1">
+                    <small>Expulsar usuarios con este rol si no han estado activos por X días</small>
                 </div>
             </div>
             <button class="btn-save" onclick="saveAction('scheduled')">Guardar Tarea</button>
@@ -695,33 +773,29 @@ async function getModalForm(type) {
             <div class="form-group">
                 <label>Tipo de Evento</label>
                 <select id="eventType">
-                    <option value="giveaway">Sorteo (Giveaway)</option>
-                    <option value="drop">Drop Aleatorio</option>
-                    <option value="reward">Recompensa por Invites</option>
+                    <option value="memberJoin">Nuevo miembro</option>
+                    <option value="memberLeave">Miembro abandona</option>
+                    <option value="roleAdded">Rol añadido</option>
+                    <option value="milestone">Milestone (usuarios)</option>
                 </select>
-                <small>
-                    <strong>Sorteo:</strong> Sorteo programado con duración específica<br>
-                    <strong>Drop:</strong> Recompensa aleatoria que aparece en el canal<br>
-                    <strong>Invites:</strong> Da rol/premio automático al invitar X personas
-                </small>
             </div>
             <div class="form-group">
-                <label>Premio/Recompensa</label>
-                <input type="text" id="prize" placeholder="Descripción del premio o rol">
-            </div>
-            <div class="form-group">
-                <label>Canal</label>
-                <select id="eventChannel">
+                <label>Canal de notificación</label>
+                <select id="notifyChannel">
                     ${getChannelsOptions()}
                 </select>
             </div>
             <div class="form-group">
-                <label>Duración (minutos)</label>
-                <input type="number" id="eventDuration" value="60" min="1">
+                <label>Mensaje personalizado</label>
+                <textarea id="eventMessage" rows="4" placeholder="Usa {user}, {count}, {role} como variables"></textarea>
+                <small>Ejemplo: "¡Bienvenido {user}! Eres el miembro #{count}"</small>
             </div>
             <div class="form-group">
-                <label>Ganadores (solo para sorteos)</label>
-                <input type="number" id="winnersCount" value="1" min="1">
+                <label>Rol automático (para nuevos miembros)</label>
+                <select id="autoRole">
+                    <option value="">Ninguno</option>
+                    ${getRolesOptions()}
+                </select>
             </div>
             <button class="btn-save" onclick="saveAction('events')">Guardar Evento</button>
         `,
@@ -729,25 +803,21 @@ async function getModalForm(type) {
             <div class="form-group">
                 <label>Tipo de Alerta</label>
                 <select id="alertType">
-                    <option value="keywords">Keywords (Palabras Clave)</option>
-                    <option value="joins">Nuevos Miembros</option>
-                    <option value="leaves">Salidas de Miembros</option>
+                    <option value="keyword">Palabra clave</option>
+                    <option value="mentions">Menciones múltiples</option>
+                    <option value="raids">Posible raid</option>
+                    <option value="suspicious">Actividad sospechosa</option>
                 </select>
-                <small>
-                    <strong>Keywords:</strong> Notifica cuando alguien menciona palabras específicas (útil para detectar competencia, problemas, oportunidades)<br>
-                    <strong>Nuevos Miembros:</strong> Alerta al staff cuando entra alguien nuevo<br>
-                    <strong>Salidas:</strong> Notifica cuando alguien sale del servidor
-                </small>
             </div>
             <div class="form-group">
-                <label>Canal de notificación (para staff)</label>
+                <label>Canal de alertas</label>
                 <select id="alertChannel">
                     ${getChannelsOptions()}
                 </select>
             </div>
-            <div class="form-group" id="keywordsGroup">
-                <label>Keywords (separadas por comas)</label>
-                <textarea id="keywords" rows="3" placeholder="competencia, problema, ayuda, bug, error, precio"></textarea>
+            <div class="form-group">
+                <label>Palabras clave (separadas por comas)</label>
+                <input type="text" id="keywords" placeholder="admin, help, urgente">
                 <small>El bot monitoreará todos los mensajes y alertará cuando detecte estas palabras</small>
             </div>
             <button class="btn-save" onclick="saveAction('alerts')">Guardar Alerta</button>
@@ -795,9 +865,9 @@ async function saveAction(type) {
 
 function getFormData(type) {
     const data = { 
-    type, 
-    guildId: currentGuildId || (allServers.length > 0 ? allServers[0].id : '1177852483981283378')
-};
+        type, 
+        guildId: currentGuildId || (allServers.length > 0 ? allServers[0].id : '1177852483981283378')
+    };
     
     const formElements = document.querySelectorAll('#modalBody input, #modalBody select, #modalBody textarea');
     formElements.forEach(element => {
@@ -806,6 +876,8 @@ function getFormData(type) {
                 data[element.id] = element.checked;
             } else if (element.multiple) {
                 data[element.id] = Array.from(element.selectedOptions).map(opt => opt.value);
+            } else if (element.id === 'moderationChannels') {
+                data[element.id] = element.value ? element.value.split(',') : [];
             } else {
                 data[element.id] = element.value;
             }
