@@ -874,3 +874,38 @@ footer {
 .dropdown-option.selected:hover {
     background-color: #5568d3;
 }
+.channel-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.channel-icon {
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+
+.channel-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.channel-option .guild-name {
+    font-weight: 600;
+    color: #667eea;
+    font-size: 0.75rem;
+    margin-bottom: 2px;
+}
+
+.channel-option .channel-name {
+    font-size: 0.95rem;
+    color: #333;
+}
+
+.channel-option.selected .guild-name {
+    color: rgba(255,255,255,0.9);
+}
+
+.channel-option.selected .channel-name {
+    color: white;
+}

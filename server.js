@@ -8,6 +8,7 @@ require('dotenv').config();
 const authRoutes = require('./api/auth');
 const discordRoutes = require('./api/discord');
 const actionsRoutes = require('./api/actions');
+const { setupModerationSystem } = require('./moderation');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,12 +34,14 @@ function initializeClient() {
         intents: [
             GatewayIntentBits.Guilds,
             GatewayIntentBits.GuildMessages,
-            GatewayIntentBits.GuildMembers
+            GatewayIntentBits.GuildMembers,
+            GatewayIntentBits.MessageContent
         ]
     });
 
     client.once('ready', () => {
         console.log(`Bot conectado como ${client.user.tag}`);
+        setupModerationSystem(client);
     });
 
     client.on('error', (error) => {

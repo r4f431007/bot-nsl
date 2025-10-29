@@ -138,23 +138,29 @@ async function loadRoles(guildId) {
 }
 
 
-function normalizeText(text) {
-    return text.toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
-}
-
-function filterChannels(searchTerm) {
-    const term = normalizeText(searchTerm.trim());
+function getChannelIcon(channelName) {
+    const name = channelName.toLowerCase();
     
-    if (!term) {
-        return allChannels;
-    }
+    if (name.includes('afk')) return '🛏️';
+    if (name.includes('vip') || name.includes('recap')) return '📊';
+    if (name.includes('sugerencia')) return '💡';
+    if (name.includes('analiz')) return '🔍';
+    if (name.includes('verifica')) return '✅';
+    if (name.includes('regla')) return '📜';
+    if (name.includes('bienvenida') || name.includes('welcome')) return '👋';
+    if (name.includes('anuncio')) return '📢';
+    if (name.includes('general') || name.includes('chat')) return '💬';
+    if (name.includes('moderacion') || name.includes('mod')) return '🛡️';
+    if (name.includes('log')) return '📝';
+    if (name.includes('ticket')) return '🎫';
+    if (name.includes('ayuda') || name.includes('help')) return '🆘';
+    if (name.includes('musica') || name.includes('music')) return '🎵';
+    if (name.includes('juego') || name.includes('game')) return '🎮';
+    if (name.includes('meme')) return '😂';
+    if (name.includes('arte') || name.includes('art')) return '🎨';
+    if (name.includes('bot')) return '🤖';
     
-    return allChannels.filter(channel => 
-        normalizeText(channel.name).includes(term) ||
-        normalizeText(channel.guild).includes(term)
-    );
+    return '💬';
 }
 
 function renderDropdown(channels) {
@@ -175,9 +181,14 @@ function renderDropdown(channels) {
             option.classList.add('selected');
         }
         
+        const icon = getChannelIcon(channel.name);
+        
         option.innerHTML = `
-            <div class="guild-name">${channel.guild}</div>
-            <div class="channel-name">#${channel.name}</div>
+            <span class="channel-icon">${icon}</span>
+            <div class="channel-info">
+                <div class="guild-name">${channel.guild}</div>
+                <div class="channel-name">#${channel.name}</div>
+            </div>
         `;
         
         option.addEventListener('click', () => selectChannel(channel, option));
