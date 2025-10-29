@@ -42,7 +42,7 @@ client.on('error', (error) => {
     console.error('Error del cliente de Discord:', error);
 });
 
-app.use('/api', authRoutes(client));
+app.use('/api', authRoutes);
 app.use('/api', discordRoutes(client));
 
 app.get('/', (req, res) => {
