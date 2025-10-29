@@ -20,6 +20,7 @@
 
         <div class="tabs">
             <button class="tab-button active" data-tab="bot">🤖 Bot</button>
+            <button class="tab-button" data-tab="actions">⚡ Actions</button>
             <button class="tab-button" data-tab="stats">📊 Stats NSL</button>
         </div>
 
@@ -59,6 +60,60 @@
                 </div>
             </div>
 
+            <div id="actions-tab" class="tab-content">
+                <div class="card">
+                    <h2 class="section-title">⚡ Acciones Automatizadas</h2>
+                    
+                    <div class="sub-tabs">
+                        <button class="sub-tab-button active" data-subtab="moderation">🛡️ Moderación</button>
+                        <button class="sub-tab-button" data-subtab="autoroles">👥 Auto-Roles</button>
+                        <button class="sub-tab-button" data-subtab="scheduled">📅 Programadas</button>
+                        <button class="sub-tab-button" data-subtab="events">🎯 Eventos</button>
+                        <button class="sub-tab-button" data-subtab="alerts">🔔 Alertas</button>
+                    </div>
+
+                    <div id="moderation-subtab" class="sub-tab-content active">
+                        <div class="actions-header">
+                            <h3>Moderación Automática</h3>
+                            <button class="btn-create" onclick="openActionModal('moderation')">+ Nueva Acción</button>
+                        </div>
+                        <div id="moderationActions" class="actions-list"></div>
+                    </div>
+
+                    <div id="autoroles-subtab" class="sub-tab-content">
+                        <div class="actions-header">
+                            <h3>Auto-Roles</h3>
+                            <button class="btn-create" onclick="openActionModal('autoroles')">+ Nueva Acción</button>
+                        </div>
+                        <div id="autorolesActions" class="actions-list"></div>
+                    </div>
+
+                    <div id="scheduled-subtab" class="sub-tab-content">
+                        <div class="actions-header">
+                            <h3>Tareas Programadas</h3>
+                            <button class="btn-create" onclick="openActionModal('scheduled')">+ Nueva Acción</button>
+                        </div>
+                        <div id="scheduledActions" class="actions-list"></div>
+                    </div>
+
+                    <div id="events-subtab" class="sub-tab-content">
+                        <div class="actions-header">
+                            <h3>Eventos Automáticos</h3>
+                            <button class="btn-create" onclick="openActionModal('events')">+ Nueva Acción</button>
+                        </div>
+                        <div id="eventsActions" class="actions-list"></div>
+                    </div>
+
+                    <div id="alerts-subtab" class="sub-tab-content">
+                        <div class="actions-header">
+                            <h3>Alertas y Notificaciones</h3>
+                            <button class="btn-create" onclick="openActionModal('alerts')">+ Nueva Acción</button>
+                        </div>
+                        <div id="alertsActions" class="actions-list"></div>
+                    </div>
+                </div>
+            </div>
+
             <div id="stats-tab" class="tab-content">
                 <div class="card">
                     <h2 class="section-title">📊 Estadísticas del Servidor</h2>
@@ -82,6 +137,14 @@
                 </div>
             </div>
         </main>
+
+        <div id="actionModal" class="modal">
+            <div class="modal-content">
+                <span class="modal-close" onclick="closeActionModal()">&times;</span>
+                <h2 id="modalTitle">Nueva Acción</h2>
+                <div id="modalBody"></div>
+            </div>
+        </div>
 
         <footer>
             <p>Dashboard de Discord Bot - 2025</p>

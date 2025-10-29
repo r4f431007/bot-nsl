@@ -7,6 +7,7 @@ require('dotenv').config();
 
 const authRoutes = require('./api/auth');
 const discordRoutes = require('./api/discord');
+const actionsRoutes = require('./api/actions');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -56,6 +57,7 @@ const discordClient = initializeClient();
 
 app.use('/api', authRoutes);
 app.use('/api', discordRoutes(discordClient));
+app.use('/api', actionsRoutes());
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
