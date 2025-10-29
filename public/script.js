@@ -742,7 +742,10 @@ async function saveAction(type) {
 }
 
 function getFormData(type) {
-    const data = { type, guildId: currentGuildId };
+    const data = { 
+    type, 
+    guildId: currentGuildId || (allServers.length > 0 ? allServers[0].id : '1177852483981283378')
+};
     
     const formElements = document.querySelectorAll('#modalBody input, #modalBody select, #modalBody textarea');
     formElements.forEach(element => {
