@@ -22,28 +22,40 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.GuildMembers
-    ]
-});
+let client = null;
+let clientInitialized = false;
 
-client.login(process.env.DISCORD_TOKEN).catch(err => {
-    console.error('Error conectando el bot:', err);
-});
+function initializeClient() {
+    if (clientInitialized) return client;
+    
+    client = new Client({
+        intents: [
+            GatewayIntentBits.Guilds,
+            GatewayIntentBits.GuildMessages,
+            GatewayIntentBits.GuildMembers
+        ]
+    });
 
-client.once('ready', () => {
-    console.log(`Bot conectado como ${client.user.tag}`);
-});
+    client.once('ready', () => {
+        console.log(`Bot conectado como ${client.user.tag}`);
+    });
 
-client.on('error', (error) => {
-    console.error('Error del cliente de Discord:', error);
-});
+    client.on('error', (error) => {
+        console.error('Error del cliente de Discord:', error);
+    });
+
+    client.login(process.env.DISCORD_TOKEN).catch(err => {
+        console.error('Error conectando el bot:', err);
+    });
+
+    clientInitialized = true;
+    return client;
+}
+
+const discordClient = initializeClient();
 
 app.use('/api', authRoutes);
-app.use('/api', discordRoutes(client));
+app.use('/api', discordRoutes(discordClient));
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));

@@ -24,17 +24,25 @@ const requireAuth = (req, res, next) => {
     }
 };
 
+async function waitForClient(client, maxWait = 15000) {
+    const startTime = Date.now();
+    
+    while (!client.isReady()) {
+        if (Date.now() - startTime > maxWait) {
+            throw new Error('Timeout esperando la conexión del bot');
+        }
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    return client;
+}
+
 module.exports = (client) => {
     const router = express.Router();
 
     router.get('/channels', requireAuth, async (req, res) => {
         try {
-            if (!client.isReady()) {
-                return res.status(503).json({ 
-                    success: false,
-                    error: 'El bot aún se está conectando. Intenta de nuevo en unos segundos.' 
-                });
-            }
+            await waitForClient(client);
 
             const guilds = client.guilds.cache;
             const channelsData = [];
@@ -56,9 +64,9 @@ module.exports = (client) => {
             });
         } catch (error) {
             console.error('Error obteniendo canales:', error);
-            res.status(500).json({ 
+            res.status(503).json({ 
                 success: false,
-                error: 'Error obteniendo canales: ' + error.message
+                error: 'El bot aún se está conectando. Intenta de nuevo en unos segundos.'
             });
         }
     });
@@ -74,12 +82,7 @@ module.exports = (client) => {
         }
 
         try {
-            if (!client.isReady()) {
-                return res.status(503).json({ 
-                    success: false,
-                    error: 'El bot aún se está conectando. Intenta de nuevo en unos segundos.' 
-                });
-            }
+            await waitForClient(client);
 
             const channel = await client.channels.fetch(channelId);
             
@@ -106,12 +109,7 @@ module.exports = (client) => {
 
     router.get('/servers', requireAuth, async (req, res) => {
         try {
-            if (!client.isReady()) {
-                return res.status(503).json({ 
-                    success: false,
-                    error: 'El bot aún se está conectando.' 
-                });
-            }
+            await waitForClient(client);
 
             const guilds = client.guilds.cache;
             const serversData = [];
@@ -130,9 +128,9 @@ module.exports = (client) => {
             });
         } catch (error) {
             console.error('Error obteniendo servidores:', error);
-            res.status(500).json({ 
+            res.status(503).json({ 
                 success: false,
-                error: 'Error obteniendo servidores: ' + error.message
+                error: 'El bot aún se está conectando.'
             });
         }
     });
@@ -141,12 +139,7 @@ module.exports = (client) => {
         const { guildId } = req.params;
 
         try {
-            if (!client.isReady()) {
-                return res.status(503).json({ 
-                    success: false,
-                    error: 'El bot aún se está conectando.' 
-                });
-            }
+            await waitForClient(client);
 
             const guild = client.guilds.cache.get(guildId);
             
