@@ -12,6 +12,8 @@ const discordRoutes = require('./api/discord');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.set('trust proxy', 1);
+
 app.use(cors({
     origin: true,
     credentials: true
@@ -20,14 +22,16 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(session({
     secret: process.env.SESSION_SECRET || 'discord-dashboard-secret-key-change-this',
-    resave: false,
+    resave: true,
     saveUninitialized: false,
     cookie: {
         maxAge: 24 * 60 * 60 * 1000,
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
-    }
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/'
+    },
+    rolling: true
 }));
 
 app.use(express.static(path.join(__dirname, 'public')));
