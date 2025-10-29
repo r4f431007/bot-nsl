@@ -2,7 +2,6 @@ const express = require('express');
 const { Client, GatewayIntentBits } = require('discord.js');
 const cors = require('cors');
 const path = require('path');
-const session = require('express-session');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
@@ -18,28 +17,16 @@ app.use(cors({
     origin: true,
     credentials: true
 }));
-app.use(express.json());
-app.use(cookieParser());
-app.use(session({
-    secret: process.env.SESSION_SECRET || 'discord-dashboard-secret-key-change-this',
-    resave: true,
-    saveUninitialized: false,
-    cookie: {
-        maxAge: 24 * 60 * 60 * 1000,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        path: '/'
-    },
-    rolling: true
-}));
 
+app.use(cookieParser());
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildMembers
     ]
 });
 
@@ -55,8 +42,8 @@ client.on('error', (error) => {
     console.error('Error del cliente de Discord:', error);
 });
 
-app.use('/api', authRoutes);
-app.use('/api', discordRoutes);
+app.use('/api', authRoutes(client));
+app.use('/api', discordRoutes(client));
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
