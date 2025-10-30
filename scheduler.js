@@ -124,9 +124,14 @@ function parseCronExpression(frequency, datetime) {
 }
 
 async function scheduleOneTimeTask(action, datetime) {
+    // Interpretar la fecha como hora local, no UTC
     const targetTime = new Date(datetime);
     const now = new Date();
     const delay = targetTime.getTime() - now.getTime();
+
+    console.log(`🕐 Hora actual del servidor: ${now.toISOString()}`);
+    console.log(`🎯 Hora objetivo de la tarea: ${targetTime.toISOString()}`);
+    console.log(`⏱️ Delay calculado: ${delay}ms (${Math.round(delay/1000)}s)`);
 
     if (delay > 0) {
         setTimeout(() => {
