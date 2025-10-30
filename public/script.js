@@ -370,11 +370,10 @@ function renderStats(stats) {
         { icon: '🟢', label: 'Miembros En Línea', value: stats.onlineMembers || 0 },
         { icon: '💬', label: 'Canales de Texto', value: stats.textChannels || 0 },
         { icon: '🔊', label: 'Canales de Voz', value: stats.voiceChannels || 0 },
-        { icon: '👑', label: 'Roles', value: stats.roleCount || 0 },
         { icon: '😊', label: 'Emojis', value: stats.emojiCount || 0 }
     ];
     
-    statsGrid.innerHTML = statsArray.map(stat => `
+    let html = statsArray.map(stat => `
         <div class="stat-card">
             <div class="stat-icon">${stat.icon}</div>
             <div class="stat-info">
@@ -383,6 +382,39 @@ function renderStats(stats) {
             </div>
         </div>
     `).join('');
+    
+    if (stats.roles && stats.roles.length > 0) {
+        const nslRole = stats.roles.find(r => r.name === 'NSL');
+        const estudiantePrivadoRole = stats.roles.find(r => r.name === 'Estudiante Privado Oficial');
+        
+        if (nslRole && estudiantePrivadoRole) {
+            const estudiantesExpulsados = Math.max(0, nslRole.memberCount - estudiantePrivadoRole.memberCount);
+            
+            html += `
+                <div class="stat-card" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); grid-column: span 2;">
+                    <div class="stat-icon">⚠️</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Estudiantes Expulsados</div>
+                        <div class="stat-value">${estudiantesExpulsados}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        stats.roles.forEach(role => {
+            html += `
+                <div class="stat-card">
+                    <div class="stat-icon">👑</div>
+                    <div class="stat-info">
+                        <div class="stat-label">${role.name}</div>
+                        <div class="stat-value">${role.memberCount || 0}</div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    statsGrid.innerHTML = html;
 }
 
 async function loadAllActions() {
@@ -721,6 +753,7 @@ async function getModalForm(type) {
                 <label>Tipo de Tarea</label>
                 <select id="taskType" onchange="toggleKickRoleOptions()">
                     <option value="reminder">Recordatorio</option>
+                    <option value="expulsion-warning">Recordatorio de Expulsión</option>
                     <option value="cleanup">Limpiar canal</option>
                     <option value="backup">Backup de roles</option>
                     <option value="kickRoles">Expulsar usuarios por roles</option>
@@ -750,6 +783,7 @@ async function getModalForm(type) {
                 <label>Mensaje/Descripción</label>
                 <div style="display: flex; gap: 10px; margin-bottom: 8px;">
                     <button type="button" class="btn-emoji" onclick="openEmojiPicker()" style="padding: 8px 15px; background: #f0f0f0; border: 2px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 1.2rem;">😀 Emojis</button>
+                    <button type="button" onclick="useExpulsionTemplate()" style="padding: 8px 15px; background: #dc3545; color: white; border: 2px solid #c82333; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 600;">⚠️ Plantilla Expulsión</button>
                 </div>
                 <textarea id="taskMessage" rows="4" placeholder="Contenido del mensaje o descripción de la tarea"></textarea>
                 <div id="emojiPicker" style="display: none; margin-top: 10px; padding: 15px; background: #f8f9fa; border-radius: 8px; max-height: 200px; overflow-y: auto;"></div>
@@ -1008,6 +1042,22 @@ function insertEmoji(emoji) {
     
     textarea.value = text.substring(0, start) + emoji + text.substring(end);
     textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+    textarea.focus();
+}
+
+function useExpulsionTemplate() {
+    const textarea = document.getElementById('taskMessage');
+    if (!textarea) return;
+    
+    const template = `⚠️ **RECORDATORIO IMPORTANTE** ⚠️
+
+Recuerda, los estudiantes marcados como "Estudiantes Expulsados" serán expulsados el **30 de Noviembre 2025**.
+
+🔗 Haz tu onboarding aquí: http://onboarding.nosoyliquidez.com
+
+No pierdas tu lugar en la comunidad NSL. ¡Completa el proceso ahora!`;
+    
+    textarea.value = template;
     textarea.focus();
 }
 

@@ -227,54 +227,33 @@ module.exports = (client) => {
 
             await guild.members.fetch();
 
-            const roleStats = [];
+            const onlineMembers = guild.members.cache.filter(
+                member => member.presence?.status === 'online' || 
+                        member.presence?.status === 'idle' || 
+                        member.presence?.status === 'dnd'
+            ).size;
+
+            const textChannels = guild.channels.cache.filter(ch => ch.type === 0).size;
+            const voiceChannels = guild.channels.cache.filter(ch => ch.type === 2).size;
+
             const roles = guild.roles.cache
                 .filter(role => role.name !== '@everyone')
-                .sort((a, b) => b.position - a.position);
-
-            const roleIcons = {
-                'admin': '👑',
-                'moderator': '🛡️',
-                'mod': '🛡️',
-                'vip': '⭐',
-                'premium': '💎',
-                'member': '👤',
-                'bot': '🤖',
-                'verified': '✅',
-                'developer': '💻',
-                'designer': '🎨',
-                'supporter': '❤️',
-                'helper': '🆘',
-                'default': '📌'
-            };
-
-            roles.forEach(role => {
-                const count = role.members.size;
-                if (count > 0) {
-                    const roleName = role.name.toLowerCase();
-                    let icon = roleIcons.default;
-                    
-                    for (const [key, value] of Object.entries(roleIcons)) {
-                        if (roleName.includes(key)) {
-                            icon = value;
-                            break;
-                        }
-                    }
-
-                    roleStats.push({
-                        name: role.name,
-                        count: count,
-                        color: role.hexColor !== '#000000' ? role.hexColor : '#667eea',
-                        icon: icon
-                    });
-                }
-            });
+                .map(role => ({
+                    id: role.id,
+                    name: role.name,
+                    memberCount: role.members.size
+                }))
+                .sort((a, b) => b.memberCount - a.memberCount);
 
             res.json({ 
                 success: true,
                 stats: {
-                    totalMembers: guild.memberCount,
-                    roles: roleStats
+                    memberCount: guild.memberCount,
+                    onlineMembers: onlineMembers,
+                    textChannels: textChannels,
+                    voiceChannels: voiceChannels,
+                    emojiCount: guild.emojis.cache.size,
+                    roles: roles
                 }
             });
         } catch (error) {
