@@ -100,6 +100,12 @@ module.exports = () => {
                 ]
             );
             
+            // Recargar el scheduler si es una tarea programada
+            if (type === 'scheduled') {
+                const { reloadScheduledTasks } = require('../scheduler');
+                await reloadScheduledTasks();
+            }
+            
             res.json({ 
                 success: true,
                 action: { ...newAction, ...cleanData }
@@ -131,6 +137,12 @@ module.exports = () => {
                 });
             }
             
+            // Recargar el scheduler si es una tarea programada
+            if (type === 'scheduled') {
+                const { reloadScheduledTasks } = require('../scheduler');
+                await reloadScheduledTasks();
+            }
+            
             res.json({ success: true });
         } catch (error) {
             console.error('Error actualizando acción:', error);
@@ -150,6 +162,12 @@ module.exports = () => {
                 'DELETE FROM actions WHERE id = $1 AND type = $2',
                 [id, type]
             );
+            
+            // Recargar el scheduler si es una tarea programada
+            if (type === 'scheduled') {
+                const { reloadScheduledTasks } = require('../scheduler');
+                await reloadScheduledTasks();
+            }
             
             res.json({ success: true });
         } catch (error) {
