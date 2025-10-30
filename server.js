@@ -1,91 +1,78 @@
-// server.js - Archivo principal del servidor
-require('dotenv').config();
 const express = require('express');
-const cookieParser = require('cookie-parser');
+const { Client, GatewayIntentBits } = require('discord.js');
+const cors = require('cors');
 const path = require('path');
-const { Client, GatewayIntentBits, Partials } = require('discord.js');
-const { initDatabase } = require('./db');
+const cookieParser = require('cookie-parser');
+require('dotenv').config();
+// Después de tus imports existentes, agrega:
 const { setClient, initScheduler } = require('./scheduler');
+
+const authRoutes = require('./api/auth');
+const discordRoutes = require('./api/discord');
+const actionsRoutes = require('./api/actions');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middlewares
-app.use(express.json());
+app.set('trust proxy', 1);
+
+app.use(cors({
+    origin: true,
+    credentials: true
+}));
+
 app.use(cookieParser());
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Crear cliente de Discord
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildPresences,
-        GatewayIntentBits.GuildEmojisAndStickers
-    ],
-    partials: [Partials.Message, Partials.Channel, Partials.Reaction]
-});
+let client = null;
+let clientInitialized = false;
 
-// Configurar el cliente en el scheduler
-setClient(client);
-
-// Evento cuando el bot está listo
-client.once('ready', async () => {
-    console.log(`✅ Bot conectado como ${client.user.tag}`);
-    console.log(`📊 Servidores: ${client.guilds.cache.size}`);
+function initializeClient() {
+    if (clientInitialized) return client;
     
-    // Iniciar el sistema de tareas programadas
-    await initScheduler();
-});
+    client = new Client({
+        intents: [
+            GatewayIntentBits.Guilds,
+            GatewayIntentBits.GuildMessages,
+            GatewayIntentBits.GuildMembers
+        ]
+    });
 
-// Login del bot
-client.login(process.env.DISCORD_TOKEN).catch(err => {
-    console.error('❌ Error al conectar el bot:', err);
-    process.exit(1);
-});
+    client.once('ready', () => {
+        console.log(`Bot conectado como ${client.user.tag}`);
+    });
 
-// Importar rutas
-const authRoutes = require('./routes/auth');
-const discordRoutes = require('./routes/discord')(client);
-const actionsRoutes = require('./routes/actions')();
+    client.on('error', (error) => {
+        console.error('Error del cliente de Discord:', error);
+    });
 
-// Usar rutas
+    client.login(process.env.DISCORD_TOKEN).catch(err => {
+        console.error('Error conectando el bot:', err);
+    });
+
+    clientInitialized = true;
+    return client;
+}
+
+const discordClient = initializeClient();
+
 app.use('/api', authRoutes);
-app.use('/api', discordRoutes);
-app.use('/api', actionsRoutes);
+app.use('/api', discordRoutes(discordClient));
+app.use('/api', actionsRoutes());
 
-// Ruta principal
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Inicializar base de datos y servidor
-async function start() {
-    try {
-        await initDatabase();
-        console.log('✅ Base de datos inicializada');
-        
-        app.listen(PORT, () => {
-            console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-            console.log(`📋 Dashboard disponible en http://localhost:${PORT}`);
-        });
-    } catch (error) {
-        console.error('❌ Error al iniciar el servidor:', error);
-        process.exit(1);
-    }
+app.get('/login.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`Servidor corriendo en http://localhost:${PORT}`);
+    });
 }
 
-start();
-
-// Manejo de errores del proceso
-process.on('unhandledRejection', (error) => {
-    console.error('❌ Unhandled promise rejection:', error);
-});
-
-process.on('SIGINT', () => {
-    console.log('👋 Cerrando servidor...');
-    client.destroy();
-    process.exit(0);
-});
+module.exports = app;
