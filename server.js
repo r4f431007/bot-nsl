@@ -1,79 +1,91 @@
-const express = require('express');
-const { Client, GatewayIntentBits } = require('discord.js');
-const cors = require('cors');
-const path = require('path');
-const cookieParser = require('cookie-parser');
+// server.js - Archivo principal del servidor
 require('dotenv').config();
-
-const authRoutes = require('./api/auth');
-const discordRoutes = require('./api/discord');
-const actionsRoutes = require('./api/actions');
-const { setupModerationSystem } = require('./moderation');
+const express = require('express');
+const cookieParser = require('cookie-parser');
+const path = require('path');
+const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const { initDatabase } = require('./db');
+const { setClient, initScheduler } = require('./scheduler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.set('trust proxy', 1);
-
-app.use(cors({
-    origin: true,
-    credentials: true
-}));
-
-app.use(cookieParser());
+// Middlewares
 app.use(express.json());
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-let client = null;
-let clientInitialized = false;
+// Crear cliente de Discord
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildPresences,
+        GatewayIntentBits.GuildEmojisAndStickers
+    ],
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction]
+});
 
-function initializeClient() {
-    if (clientInitialized) return client;
+// Configurar el cliente en el scheduler
+setClient(client);
+
+// Evento cuando el bot está listo
+client.once('ready', async () => {
+    console.log(`✅ Bot conectado como ${client.user.tag}`);
+    console.log(`📊 Servidores: ${client.guilds.cache.size}`);
     
-    client = new Client({
-        intents: [
-            GatewayIntentBits.Guilds,
-            GatewayIntentBits.GuildMessages,
-            GatewayIntentBits.GuildMembers,
-            GatewayIntentBits.MessageContent
-        ]
-    });
+    // Iniciar el sistema de tareas programadas
+    await initScheduler();
+});
 
-    client.once('ready', () => {
-        console.log(`Bot conectado como ${client.user.tag}`);
-        setupModerationSystem(client);
-    });
+// Login del bot
+client.login(process.env.DISCORD_TOKEN).catch(err => {
+    console.error('❌ Error al conectar el bot:', err);
+    process.exit(1);
+});
 
-    client.on('error', (error) => {
-        console.error('Error del cliente de Discord:', error);
-    });
+// Importar rutas
+const authRoutes = require('./routes/auth');
+const discordRoutes = require('./routes/discord')(client);
+const actionsRoutes = require('./routes/actions')();
 
-    client.login(process.env.DISCORD_TOKEN).catch(err => {
-        console.error('Error conectando el bot:', err);
-    });
-
-    clientInitialized = true;
-    return client;
-}
-
-const discordClient = initializeClient();
-
+// Usar rutas
 app.use('/api', authRoutes);
-app.use('/api', discordRoutes(discordClient));
-app.use('/api', actionsRoutes());
+app.use('/api', discordRoutes);
+app.use('/api', actionsRoutes);
 
+// Ruta principal
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/login.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-if (process.env.NODE_ENV !== 'production') {
-    app.listen(PORT, () => {
-        console.log(`Servidor corriendo en http://localhost:${PORT}`);
-    });
+// Inicializar base de datos y servidor
+async function start() {
+    try {
+        await initDatabase();
+        console.log('✅ Base de datos inicializada');
+        
+        app.listen(PORT, () => {
+            console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+            console.log(`📋 Dashboard disponible en http://localhost:${PORT}`);
+        });
+    } catch (error) {
+        console.error('❌ Error al iniciar el servidor:', error);
+        process.exit(1);
+    }
 }
 
-module.exports = app;
+start();
+
+// Manejo de errores del proceso
+process.on('unhandledRejection', (error) => {
+    console.error('❌ Unhandled promise rejection:', error);
+});
+
+process.on('SIGINT', () => {
+    console.log('👋 Cerrando servidor...');
+    client.destroy();
+    process.exit(0);
+});

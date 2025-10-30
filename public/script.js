@@ -751,8 +751,9 @@ async function getModalForm(type) {
         scheduled: `
             <div class="form-group">
                 <label>Tipo de Tarea</label>
-                <select id="taskType" onchange="toggleKickRoleOptions()">
+                <select id="taskType" onchange="toggleScheduledTaskOptions()">
                     <option value="reminder">Recordatorio</option>
+                    <option value="estudiantes-expulsados">📊 Reporte de Estudiantes Expulsados</option>
                     <option value="expulsion-warning">Recordatorio de Expulsión</option>
                     <option value="cleanup">Limpiar canal</option>
                     <option value="backup">Backup de roles</option>
@@ -762,19 +763,19 @@ async function getModalForm(type) {
             <div class="form-group">
                 <label>Frecuencia</label>
                 <select id="frequency">
-                    <option value="once">Una vez</option>
-                    <option value="daily">Diaria</option>
-                    <option value="weekly">Semanal</option>
-                    <option value="monthly">Mensual</option>
+                    <option value="una-vez">Una vez</option>
+                    <option value="diaria">Diaria</option>
+                    <option value="semanal">Semanal</option>
+                    <option value="mensual">Mensual</option>
                 </select>
             </div>
             <div class="form-group">
                 <label>Fecha/Hora (tu zona horaria local)</label>
-                <input type="datetime-local" id="scheduleTime">
+                <input type="datetime-local" id="datetime">
             </div>
-            <div class="form-group">
+            <div class="form-group" id="taskChannelGroup">
                 <label>Canal</label>
-                <select id="channelId">
+                <select id="taskChannel">
                     <option value="">Ninguno</option>
                     ${getChannelsOptions()}
                 </select>
@@ -785,7 +786,7 @@ async function getModalForm(type) {
                     <button type="button" class="btn-emoji" onclick="openEmojiPicker()" style="padding: 8px 15px; background: #f0f0f0; border: 2px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 1.2rem;">😀 Emojis</button>
                     <button type="button" onclick="useExpulsionTemplate()" style="padding: 8px 15px; background: #dc3545; color: white; border: 2px solid #c82333; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 600;">⚠️ Plantilla Expulsión</button>
                 </div>
-                <textarea id="taskMessage" rows="4" placeholder="Contenido del mensaje o descripción de la tarea"></textarea>
+                <textarea id="taskMessage" rows="4" placeholder="Contenido del mensaje o descripción de la tarea. Usa {{EXPULSADOS}} para el número en tiempo real."></textarea>
                 <div id="emojiPicker" style="display: none; margin-top: 10px; padding: 15px; background: #f8f9fa; border-radius: 8px; max-height: 200px; overflow-y: auto;"></div>
             </div>
             <div id="roleKickOptions" style="display: none;">
@@ -1051,7 +1052,7 @@ function useExpulsionTemplate() {
     
     const template = `⚠️ **RECORDATORIO IMPORTANTE** ⚠️
 
-Recuerda, los estudiantes marcados como "Estudiantes Expulsados" serán expulsados el **30 de Noviembre 2025**.
+Actualmente hay **{{EXPULSADOS}}** estudiantes marcados como "Estudiantes Expulsados" que serán expulsados el **30 de Noviembre 2025**.
 
 🔗 Haz tu onboarding aquí: http://onboarding.nosoyliquidez.com
 
@@ -1059,6 +1060,22 @@ No pierdas tu lugar en la comunidad NSL. ¡Completa el proceso ahora!`;
     
     textarea.value = template;
     textarea.focus();
+}
+
+function toggleScheduledTaskOptions() {
+    const taskType = document.getElementById('taskType')?.value;
+    const roleKickOptions = document.getElementById('roleKickOptions');
+    const taskChannelGroup = document.getElementById('taskChannelGroup');
+    
+    if (roleKickOptions) {
+        roleKickOptions.style.display = (taskType === 'kickRoles') ? 'block' : 'none';
+    }
+    
+    // Mostrar/ocultar el canal según el tipo de tarea
+    if (taskChannelGroup) {
+        const hideChannelTasks = ['backup', 'kickRoles'];
+        taskChannelGroup.style.display = hideChannelTasks.includes(taskType) ? 'none' : 'block';
+    }
 }
 
 async function logout() {

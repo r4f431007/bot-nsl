@@ -265,5 +265,56 @@ module.exports = (client) => {
         }
     });
 
+    // Endpoint para calcular estudiantes expulsados en tiempo real
+    router.get('/calculate-expelled/:guildId', requireAuth, async (req, res) => {
+        const { guildId } = req.params;
+
+        try {
+            await waitForClient(client);
+
+            const guild = client.guilds.cache.get(guildId);
+            
+            if (!guild) {
+                return res.status(404).json({ 
+                    success: false,
+                    error: 'Servidor no encontrado' 
+                });
+            }
+
+            await guild.members.fetch();
+
+            // Buscar roles específicos
+            const nslRole = guild.roles.cache.find(r => r.name === 'NSL');
+            const estudianteOficialRole = guild.roles.cache.find(r => r.name === 'Estudiante Privado Oficial');
+
+            if (!nslRole || !estudianteOficialRole) {
+                return res.json({ 
+                    success: true,
+                    expelled: 0,
+                    nslCount: nslRole ? nslRole.members.size : 0,
+                    estudianteCount: estudianteOficialRole ? estudianteOficialRole.members.size : 0,
+                    warning: 'No se encontraron todos los roles necesarios'
+                });
+            }
+
+            const nslCount = nslRole.members.size;
+            const estudianteCount = estudianteOficialRole.members.size;
+            const expelled = nslCount - estudianteCount;
+
+            res.json({ 
+                success: true,
+                expelled: expelled,
+                nslCount: nslCount,
+                estudianteCount: estudianteCount
+            });
+        } catch (error) {
+            console.error('Error calculando expulsados:', error);
+            res.status(500).json({ 
+                success: false,
+                error: 'Error calculando expulsados: ' + error.message
+            });
+        }
+    });
+
     return router;
 };
