@@ -128,7 +128,15 @@ function parseCronExpression(frequency, datetime) {
 }
 
 async function scheduleOneTimeTask(action, datetime) {
-    const targetTime = new Date(datetime);
+    let targetTime;
+    
+    if (datetime.endsWith('Z') || datetime.includes('+') || datetime.includes('T') && datetime.split('T')[1].includes('-')) {
+        targetTime = new Date(datetime);
+    } else {
+        const dateStr = datetime.includes('T') ? datetime : datetime.replace(' ', 'T');
+        targetTime = new Date(dateStr + '-05:00');
+    }
+    
     const now = new Date();
     const delay = targetTime.getTime() - now.getTime();
 
