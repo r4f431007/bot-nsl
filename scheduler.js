@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const { getPool } = require('./db');
 
 let client = null;
+const activeTimeouts = new Map();
 
 function setClient(discordClient) {
     client = discordClient;
@@ -17,7 +18,6 @@ async function executeScheduledTask(action) {
     try {
         console.log(`📅 Ejecutando tarea programada: ${action.name}`);
 
-        // Verificar que la tarea esté habilitada
         if (!action.enabled) {
             console.log(`⏸️ Tarea ${action.name} está deshabilitada`);
             return;
@@ -25,20 +25,16 @@ async function executeScheduledTask(action) {
 
         const config = typeof action.config === 'string' ? JSON.parse(action.config) : action.config;
 
-        // Caso especial: Reporte de Estudiantes Expulsados
         if (config.taskType === 'estudiantes-expulsados') {
             await executeExpelledStudentsReport(config);
             return;
         }
 
-        // Otras tareas programadas
         if (config.taskChannel && config.taskMessage) {
             const channel = await client.channels.fetch(config.taskChannel);
             if (channel && channel.isTextBased()) {
-                // Reemplazar variables dinámicas
                 let message = config.taskMessage;
                 
-                // Si el mensaje contiene {{EXPULSADOS}}, calcularlo
                 if (message.includes('{{EXPULSADOS}}')) {
                     const expelled = await calculateExpelledStudents(config.guildId);
                     message = message.replace(/\{\{EXPULSADOS\}\}/g, expelled.toString());
@@ -90,56 +86,71 @@ async function executeExpelledStudentsReport(config) {
     }
 }
 
+async function disableOneTimeTask(actionId) {
+    try {
+        const pool = getPool();
+        await pool.query(
+            'UPDATE actions SET enabled = false WHERE id = $1',
+            [actionId]
+        );
+        console.log(`✅ Tarea una-vez deshabilitada: ${actionId}`);
+    } catch (error) {
+        console.error('Error deshabilitando tarea:', error);
+    }
+}
+
 function parseCronExpression(frequency, datetime) {
-    // Convertir frecuencia a expresión cron
     switch (frequency) {
         case 'una-vez':
-            // Para una sola vez, usaremos una tarea específica
             return null;
         case 'diaria':
-            // Ejecutar todos los días a la hora especificada
             if (datetime) {
                 const date = new Date(datetime);
                 return `${date.getMinutes()} ${date.getHours()} * * *`;
             }
-            return '0 9 * * *'; // Por defecto a las 9 AM
+            return '0 9 * * *';
         case 'semanal':
-            // Ejecutar semanalmente
             if (datetime) {
                 const date = new Date(datetime);
                 const dayOfWeek = date.getDay();
                 return `${date.getMinutes()} ${date.getHours()} * * ${dayOfWeek}`;
             }
-            return '0 9 * * 1'; // Por defecto lunes a las 9 AM
+            return '0 9 * * 1';
         case 'mensual':
-            // Ejecutar mensualmente
             if (datetime) {
                 const date = new Date(datetime);
                 return `${date.getMinutes()} ${date.getHours()} ${date.getDate()} * *`;
             }
-            return '0 9 1 * *'; // Por defecto primer día del mes
+            return '0 9 1 * *';
         default:
             return null;
     }
 }
 
 async function scheduleOneTimeTask(action, datetime) {
-    // Interpretar la fecha como hora local, no UTC
     const targetTime = new Date(datetime);
     const now = new Date();
     const delay = targetTime.getTime() - now.getTime();
 
-    console.log(`🕐 Hora actual del servidor: ${now.toISOString()}`);
-    console.log(`🎯 Hora objetivo de la tarea: ${targetTime.toISOString()}`);
-    console.log(`⏱️ Delay calculado: ${delay}ms (${Math.round(delay/1000)}s)`);
+    console.log(`🕐 Hora actual: ${now.toLocaleString('es-CO', {timeZone: 'America/Bogota'})} (${now.toISOString()})`);
+    console.log(`🎯 Hora objetivo: ${targetTime.toLocaleString('es-CO', {timeZone: 'America/Bogota'})} (${targetTime.toISOString()})`);
+    console.log(`⏱️ Delay: ${delay}ms (${Math.round(delay/1000)}s) = ${Math.round(delay/60000)} minutos`);
 
     if (delay > 0) {
-        setTimeout(() => {
-            executeScheduledTask(action);
+        const timeoutId = setTimeout(async () => {
+            console.log(`🚀 Ejecutando tarea programada: ${action.name}`);
+            await executeScheduledTask(action);
+            await disableOneTimeTask(action.id);
+            activeTimeouts.delete(action.id);
         }, delay);
-        console.log(`⏰ Tarea única programada para ${targetTime.toLocaleString()}`);
+        
+        activeTimeouts.set(action.id, timeoutId);
+        console.log(`⏰ Tarea "${action.name}" programada para ${targetTime.toLocaleString('es-CO', {timeZone: 'America/Bogota'})}`);
+        return timeoutId;
     } else {
-        console.log(`⚠️ La fecha/hora ya pasó para la tarea ${action.name}`);
+        console.log(`⚠️ La fecha/hora ya pasó (hace ${Math.abs(Math.round(delay/60000))} minutos)`);
+        await disableOneTimeTask(action.id);
+        return null;
     }
 }
 
@@ -182,11 +193,15 @@ async function initScheduler() {
     }
 }
 
-// Recargar tareas cuando se crean nuevas
 async function reloadScheduledTasks() {
     console.log('🔄 Recargando tareas programadas...');
-    // En un sistema real, deberías detener las tareas existentes y recargarlas
-    // Por simplicidad, simplemente reiniciamos
+    
+    for (const [actionId, timeoutId] of activeTimeouts.entries()) {
+        clearTimeout(timeoutId);
+        console.log(`⏹️ Cancelada tarea: ${actionId}`);
+    }
+    activeTimeouts.clear();
+    
     await initScheduler();
 }
 
